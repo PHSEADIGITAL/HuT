@@ -303,7 +303,7 @@ test("marketplace points reward works after five paid unlocks", async () => {
 
   const paidUnlockTargets = [
     "listing-used-iphone-13",
-    "listing-office-chair",
+    "listing-dining-set",
     "listing-ps4-console",
     createdListingIds[0],
     createdListingIds[1]
