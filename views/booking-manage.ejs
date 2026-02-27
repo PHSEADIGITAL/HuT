@@ -1,0 +1,80 @@
+<%- include("partials/header", { title: "Manage Booking" }) %>
+
+<section class="hero small">
+  <h1>Manage booking</h1>
+  <p>Review your reservation and cancel if needed.</p>
+</section>
+
+<% if (message) { %>
+  <section class="card <%= message.includes('successfully') ? 'success' : 'danger' %>">
+    <p><%= message %></p>
+  </section>
+<% } %>
+
+<section class="card">
+  <h2>Reservation summary</h2>
+  <div class="summary-grid">
+    <div>
+      <span class="label">Hotel</span>
+      <span><%= hotel.name %></span>
+    </div>
+    <div>
+      <span class="label">Booking status</span>
+      <span><%= booking.status %></span>
+    </div>
+    <div>
+      <span class="label">Payment status</span>
+      <span><%= booking.paymentStatus %></span>
+    </div>
+    <div>
+      <span class="label">Check-in</span>
+      <span><%= booking.checkInDate %></span>
+    </div>
+    <div>
+      <span class="label">Check-out</span>
+      <span><%= booking.checkOutDate %></span>
+    </div>
+    <div>
+      <span class="label">Days booked</span>
+      <span><%= booking.nights %></span>
+    </div>
+    <div>
+      <span class="label">Emergency contact</span>
+      <span><%= booking.emergencyContactName %> (<%= booking.emergencyContactPhone %>)</span>
+    </div>
+    <div>
+      <span class="label">Total paid</span>
+      <span><strong><%= formatNaira(booking.pricing.totalPaid) %></strong></span>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Cancellation policy</h2>
+  <ul>
+    <% refundRules.forEach((rule) => { %>
+      <li><%= rule %></li>
+    <% }) %>
+  </ul>
+  <% if (booking.status === "confirmed") { %>
+    <form method="POST" action="/bookings/<%= booking.id %>/cancel">
+      <button type="submit" class="danger-btn">Cancel this booking</button>
+    </form>
+  <% } else { %>
+    <p class="muted">This booking can no longer be cancelled online.</p>
+  <% } %>
+</section>
+
+<section class="card">
+  <h2>Notification history</h2>
+  <ul>
+    <% notifications.forEach((item) => { %>
+      <li>
+        <strong><%= item.channel.toUpperCase() %></strong>: <%= item.recipient %> -
+        <span class="muted"><%= item.createdAt %></span>
+      </li>
+    <% }) %>
+  </ul>
+</section>
+
+<%- include("partials/footer", { platform }) %>

@@ -1,0 +1,44 @@
+<%- include("partials/header", { title: "Hotel Admin Overview" }) %>
+
+<section class="hero small">
+  <h1>Hotel Admin Overview</h1>
+  <p>Manage bookings, payouts, subscription listing, and pricing performance.</p>
+</section>
+
+<section class="cards">
+  <% if (!hotels.length) { %>
+    <article class="card">
+      <p class="muted">No hotels are assigned to this admin account yet.</p>
+    </article>
+  <% } %>
+  <% hotels.forEach((hotel) => { %>
+    <article class="card hotel-card">
+      <div class="card-head">
+        <h2><%= hotel.name %></h2>
+        <% if (hotel.premiumListingActive) { %>
+          <span class="badge premium">Premium</span>
+        <% } %>
+      </div>
+      <p class="muted"><%= hotel.location %></p>
+      <div class="stats">
+        <span>Bookings: <strong><%= hotel.bookingCount %></strong></span>
+        <span>Gross Sales: <strong><%= formatNaira(hotel.grossSales) %></strong></span>
+      </div>
+      <div class="stats">
+        <span>Platform Commission: <strong><%= formatNaira(hotel.platformRevenue) %></strong></span>
+      </div>
+      <a class="button-link" href="/admin/hotels/<%= hotel.id %>/dashboard">Open dashboard</a>
+    </article>
+  <% }) %>
+</section>
+
+<section class="card ideas">
+  <h3>What this dashboard enforces</h3>
+  <ul>
+    <li>Payment split to hotel bank account and Hut commission account.</li>
+    <li>Double-booking prevention and real-time room availability sync.</li>
+    <li>Fraud-scoring indicators attached to bookings for manual review.</li>
+  </ul>
+</section>
+
+<%- include("partials/footer", { platform }) %>

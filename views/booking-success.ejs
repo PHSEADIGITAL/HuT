@@ -1,0 +1,76 @@
+<%- include("partials/header", { title: "Booking Confirmed" }) %>
+
+<section class="hero small success">
+  <h1>Booking confirmed and paid</h1>
+  <p>
+    Thank you, <strong><%= booking.customerName %></strong>. Your room is reserved at
+    <strong><%= hotel.name %></strong>.
+  </p>
+</section>
+
+<section class="card">
+  <h2>Booking details</h2>
+  <div class="summary-grid">
+    <div>
+      <span class="label">Booking ID</span>
+      <span><%= booking.id %></span>
+    </div>
+    <div>
+      <span class="label">Room category</span>
+      <span><%= booking.roomCategory %></span>
+    </div>
+    <div>
+      <span class="label">Check-in</span>
+      <span><%= booking.checkInDate %></span>
+    </div>
+    <div>
+      <span class="label">Check-out</span>
+      <span><%= booking.checkOutDate %></span>
+    </div>
+    <div>
+      <span class="label">Days booked</span>
+      <span><%= booking.nights %></span>
+    </div>
+    <div>
+      <span class="label">Pickup add-on</span>
+      <span><%= booking.pickupRequested ? "Yes" : "No" %></span>
+    </div>
+    <div>
+      <span class="label">Total paid</span>
+      <span><strong><%= formatNaira(booking.pricing.totalPaid) %></strong></span>
+    </div>
+    <div>
+      <span class="label">Transaction reference</span>
+      <span><%= payment ? payment.transactionRef : "-" %></span>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Acknowledgement sent</h2>
+  <ul>
+    <% notifications.forEach((item) => { %>
+      <li>
+        <strong><%= item.channel.toUpperCase() %></strong> sent to <%= item.recipient %> -
+        <span class="muted"><%= item.createdAt %></span>
+      </li>
+    <% }) %>
+  </ul>
+  <p class="muted">
+    You can cancel if needed according to the policy below.
+  </p>
+  <% if (currentUser && currentUser.role === "customer" && currentUser.id === booking.customerUserId) { %>
+    <a class="button-link" href="/bookings/<%= booking.id %>/manage">Manage / Cancel booking</a>
+  <% } %>
+</section>
+
+<section class="card ideas">
+  <h2>Refund policy summary</h2>
+  <ul>
+    <% refundRules.forEach((rule) => { %>
+      <li><%= rule %></li>
+    <% }) %>
+  </ul>
+</section>
+
+<%- include("partials/footer", { platform }) %>

@@ -1,0 +1,47 @@
+<%- include("partials/header", { title: "Complete Payment" }) %>
+
+<section class="hero small">
+  <h1>Complete your payment</h1>
+  <p>Your booking was created and is waiting for payment confirmation.</p>
+</section>
+
+<section class="card">
+  <div class="summary-grid">
+    <div>
+      <span class="label">Booking ID</span>
+      <span><%= booking.id %></span>
+    </div>
+    <div>
+      <span class="label">Status</span>
+      <span><%= booking.status %> / <%= booking.paymentStatus %></span>
+    </div>
+    <div>
+      <span class="label">Stay</span>
+      <span><%= booking.checkInDate %> to <%= booking.checkOutDate %></span>
+    </div>
+    <div>
+      <span class="label">Total amount</span>
+      <span><strong><%= formatNaira(booking.pricing.totalPaid) %></strong></span>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <% if (paymentSession && paymentSession.paymentUrl) { %>
+    <p>
+      Click below to pay with <strong><%= paymentSession.provider %></strong>.
+    </p>
+    <a class="button-link" href="<%= paymentSession.paymentUrl %>" target="_blank" rel="noopener noreferrer">
+      Continue to secure payment
+    </a>
+    <p class="muted tiny">
+      After payment, you will be redirected back automatically.
+    </p>
+  <% } else { %>
+    <p class="muted">
+      Payment link is unavailable. Please contact support to restore your booking payment session.
+    </p>
+  <% } %>
+</section>
+
+<%- include("partials/footer", { platform }) %>

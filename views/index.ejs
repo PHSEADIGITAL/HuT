@@ -1,0 +1,68 @@
+<%- include("partials/header", { title: "Bonny Island Hotels" }) %>
+
+<section class="hero">
+  <h1>Book trusted hotels in Bonny Island</h1>
+  <p>
+    Real-time availability, secure online payment, instant SMS + email confirmation,
+    and clear cancellation/refund policy.
+  </p>
+</section>
+
+<section class="card filter-card">
+  <form class="grid-form compact" method="GET" action="/">
+    <div>
+      <label for="checkInDate">Check-in</label>
+      <input id="checkInDate" type="date" name="checkInDate" value="<%= checkInDate %>" required />
+    </div>
+    <div>
+      <label for="checkOutDate">Check-out</label>
+      <input
+        id="checkOutDate"
+        type="date"
+        name="checkOutDate"
+        value="<%= checkOutDate %>"
+        required
+      />
+    </div>
+    <div class="align-end">
+      <button type="submit">Update availability</button>
+    </div>
+  </form>
+</section>
+
+<section class="cards">
+  <% hotels.forEach((hotel) => { %>
+    <article class="card hotel-card">
+      <div class="card-head">
+        <h2><%= hotel.name %></h2>
+        <% if (hotel.premiumListingActive) { %>
+          <span class="badge premium">Premium Listing</span>
+        <% } %>
+      </div>
+      <p class="muted"><%= hotel.location %></p>
+      <p><%= hotel.description %></p>
+      <div class="stats">
+        <span>From <strong><%= formatNaira(hotel.minPrice) %></strong>/night</span>
+        <span><strong><%= hotel.roomsAvailable %></strong> rooms available</span>
+      </div>
+      <a
+        class="button-link"
+        href="/hotels/<%= hotel.id %>?checkInDate=<%= checkInDate %>&checkOutDate=<%= checkOutDate %>"
+      >
+        View rooms and book
+      </a>
+    </article>
+  <% }) %>
+</section>
+
+<section class="card ideas">
+  <h3>Guest Experience Enhancements Included</h3>
+  <ul>
+    <li>Double-booking protection at booking confirmation layer.</li>
+    <li>Fraud scoring for risky payment attempts.</li>
+    <li>Emergency contact capture for every reservation.</li>
+    <li>Optional pickup add-on during booking.</li>
+  </ul>
+</section>
+
+<%- include("partials/footer", { platform }) %>

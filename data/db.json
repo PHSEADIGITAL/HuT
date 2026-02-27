@@ -1,0 +1,166 @@
+{
+  "platform": {
+    "name": "Hut!",
+    "bankAccount": "HUT-PLATFORM-00112233",
+    "defaultCommissionRate": 0.12,
+    "premiumSubscriptionMonthlyFee": 75000,
+    "whatsappSupportNumber": "2348030001122"
+  },
+  "hotels": [
+    {
+      "id": "hotel-seaside-grand",
+      "name": "Seaside Grand Hotel",
+      "description": "Premium ocean-view hotel in Bonny Island with conference and business facilities.",
+      "location": "Finima Road, Bonny Island",
+      "bankAccount": "0445548871",
+      "bankName": "Coral Trust Bank",
+      "cancellationPolicy": "flexible",
+      "commissionRate": 0.12,
+      "premiumListingActive": true,
+      "premiumListingExpiresAt": "2026-12-31T23:59:59.000Z",
+      "pickupFee": 9000,
+      "createdAt": "2026-02-01T10:15:00.000Z"
+    },
+    {
+      "id": "hotel-bonny-suites",
+      "name": "Bonny Suites & Towers",
+      "description": "Comfort-focused hotel with strong family and corporate room options.",
+      "location": "King Perekule Street, Bonny Island",
+      "bankAccount": "1107782344",
+      "bankName": "Delta National Bank",
+      "cancellationPolicy": "flexible",
+      "commissionRate": 0.1,
+      "premiumListingActive": false,
+      "premiumListingExpiresAt": null,
+      "pickupFee": 7000,
+      "createdAt": "2026-02-02T08:20:00.000Z"
+    },
+    {
+      "id": "hotel-creekside-lodge",
+      "name": "Creekside Lodge",
+      "description": "Budget-friendly waterfront lodge suitable for short stays.",
+      "location": "New Layout, Bonny Island",
+      "bankAccount": "7773341120",
+      "bankName": "Island Union Bank",
+      "cancellationPolicy": "flexible",
+      "commissionRate": 0.09,
+      "premiumListingActive": false,
+      "premiumListingExpiresAt": null,
+      "pickupFee": 5000,
+      "createdAt": "2026-02-03T09:30:00.000Z"
+    }
+  ],
+  "rooms": [
+    {
+      "id": "room-seaside-standard",
+      "hotelId": "hotel-seaside-grand",
+      "category": "Standard",
+      "pricePerNight": 55000,
+      "totalUnits": 8
+    },
+    {
+      "id": "room-seaside-deluxe",
+      "hotelId": "hotel-seaside-grand",
+      "category": "Deluxe",
+      "pricePerNight": 85000,
+      "totalUnits": 6
+    },
+    {
+      "id": "room-seaside-executive",
+      "hotelId": "hotel-seaside-grand",
+      "category": "Executive Suite",
+      "pricePerNight": 135000,
+      "totalUnits": 3
+    },
+    {
+      "id": "room-bonny-standard",
+      "hotelId": "hotel-bonny-suites",
+      "category": "Standard",
+      "pricePerNight": 42000,
+      "totalUnits": 10
+    },
+    {
+      "id": "room-bonny-family",
+      "hotelId": "hotel-bonny-suites",
+      "category": "Family Deluxe",
+      "pricePerNight": 68000,
+      "totalUnits": 5
+    },
+    {
+      "id": "room-creek-classic",
+      "hotelId": "hotel-creekside-lodge",
+      "category": "Classic",
+      "pricePerNight": 30000,
+      "totalUnits": 12
+    },
+    {
+      "id": "room-creek-premium",
+      "hotelId": "hotel-creekside-lodge",
+      "category": "Premium",
+      "pricePerNight": 47000,
+      "totalUnits": 4
+    }
+  ],
+  "users": [
+    {
+      "id": "user-platform-owner",
+      "role": "platform_admin",
+      "name": "Hut Platform Owner",
+      "email": "owner@hut.app",
+      "phone": "+2348030000001",
+      "passwordHash": "scrypt$309c91bc7d91fc043c8fb3cc7d4d870f$4e2f5d5e0d74e7a3cdd4b24b21a98d9be417870fa107875bcc10b6321f64ccf68280773a3d978de1b2f817b2c76f803fcdb2c61dadb023040e9b857c3337544f",
+      "createdAt": "2026-02-01T09:00:00.000Z"
+    },
+    {
+      "id": "user-seaside-admin",
+      "role": "hotel_admin",
+      "name": "Seaside Admin",
+      "email": "admin@seaside.hut",
+      "phone": "+2348030000101",
+      "hotelIds": [
+        "hotel-seaside-grand"
+      ],
+      "passwordHash": "scrypt$dcc5abbe64af99ead375472dd42088e3$19e09d4963ccf0bdd8698a82ce17cd60296cd11581e76be389fa997797ef6fc3b2ca6c347bacfb03c5b5e085e41e8e2116ee3fe7f2aa259ee34bbf5b3923ae80",
+      "createdAt": "2026-02-01T09:30:00.000Z"
+    },
+    {
+      "id": "user-bonny-admin",
+      "role": "hotel_admin",
+      "name": "Bonny Suites Admin",
+      "email": "admin@bonnysuites.hut",
+      "phone": "+2348030000102",
+      "hotelIds": [
+        "hotel-bonny-suites"
+      ],
+      "passwordHash": "scrypt$de1f2bb15f369aee6b58e4b2cd9b80bb$22fa57a080ea14f6e4f1d442b73dea5841c3f6de66043a394ab0e3821ecce029a0ffa95fd9d74a75a5e2bda2dbb7f47f789a4b493a3d755b0c46ecdc2be4d4f5",
+      "createdAt": "2026-02-02T09:30:00.000Z"
+    },
+    {
+      "id": "user-creek-admin",
+      "role": "hotel_admin",
+      "name": "Creekside Admin",
+      "email": "admin@creekside.hut",
+      "phone": "+2348030000103",
+      "hotelIds": [
+        "hotel-creekside-lodge"
+      ],
+      "passwordHash": "scrypt$61faf5127101fc762b9e3eb9c68c3124$8c70ab142820af3776b3821a4698e6eb0b7c0426f46c2edf742bb637430c499e2deaccb40458f536894f579824adec5a02d818824b1c5d16f403a1efd2b297c1",
+      "createdAt": "2026-02-03T09:30:00.000Z"
+    },
+    {
+      "id": "user-demo-customer",
+      "role": "customer",
+      "name": "Demo Customer",
+      "email": "customer@hut.app",
+      "phone": "+2348030000201",
+      "passwordHash": "scrypt$7e07c8e286e05ee71976e05286393612$211ebd6ce6cb6d83e7a7420abd76e0d47df326789ac57860ff0fca0d5b6d873ef5d683571f1ece8cb8dba41bb2bff710a1347324aa49464980de7e56fdd3d4e4",
+      "createdAt": "2026-02-03T09:45:00.000Z"
+    }
+  ],
+  "bookings": [],
+  "payments": [],
+  "notifications": [],
+  "premiumSubscriptions": [],
+  "fraudEvents": [],
+  "paymentSessions": []
+}
