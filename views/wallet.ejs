@@ -22,23 +22,29 @@
 
 <section class="card">
   <h2>Fund wallet</h2>
-  <p class="muted">
-    Transfer to platform account (<strong><%= platform.bankAccount %></strong>) and submit details
-    below to credit your in-app wallet.
-  </p>
-  <form class="grid-form compact" method="POST" action="/wallet/topup">
-    <div>
-      <label for="amount">Amount (NGN)</label>
-      <input id="amount" name="amount" type="number" min="1" required />
-    </div>
-    <div>
-      <label for="reference">Transfer reference</label>
-      <input id="reference" name="reference" type="text" required />
-    </div>
-    <div class="align-end">
-      <button type="submit">Credit wallet</button>
-    </div>
-  </form>
+  <% if (canTopUp) { %>
+    <p class="muted">
+      Transfer to platform account (<strong><%= platform.bankAccount %></strong>) and submit details
+      below to credit your in-app wallet.
+    </p>
+    <form class="grid-form compact" method="POST" action="/wallet/topup">
+      <div>
+        <label for="amount">Amount (NGN)</label>
+        <input id="amount" name="amount" type="number" min="1" required />
+      </div>
+      <div>
+        <label for="reference">Transfer reference</label>
+        <input id="reference" name="reference" type="text" required />
+      </div>
+      <div class="align-end">
+        <button type="submit">Credit wallet</button>
+      </div>
+    </form>
+  <% } else { %>
+    <p class="muted">
+      Wallet top-up is disabled for hotel admin accounts.
+    </p>
+  <% } %>
 </section>
 
 <section class="card">

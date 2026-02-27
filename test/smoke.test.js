@@ -79,6 +79,18 @@ test("hotel admin can access assigned dashboard", async () => {
   await admin.get("/admin").expect(200);
   await admin.get("/admin/hotels/hotel-seaside-grand/dashboard").expect(200);
   await admin.get("/admin/hotels/hotel-bonny-suites/dashboard").expect(403);
+
+  await admin
+    .post("/wallet/topup")
+    .type("form")
+    .send({
+      amount: "1000",
+      reference: "ADMIN-TOPUP-TEST"
+    })
+    .expect(302);
+
+  const walletPage = await admin.get("/wallet").expect(200);
+  assert.match(walletPage.text, /Wallet top-up is disabled for hotel admin accounts/);
 });
 
 test("marketplace listing limit, wallet topup and contact unlock flow", async () => {
@@ -143,10 +155,21 @@ test("marketplace listing limit, wallet topup and contact unlock flow", async ()
     .post("/wallet/topup")
     .type("form")
     .send({
-      amount: "500",
+      amount: "3000",
       reference: `SMOKE-${unique}`
     })
     .expect(302);
+
+  await buyer
+    .post("/marketplace/plans/purchase")
+    .type("form")
+    .send({
+      planId: "basic"
+    })
+    .expect(302);
+
+  const planPage = await buyer.get("/marketplace/new").expect(200);
+  assert.match(planPage.text, /0 \/ 10/);
 
   await buyer
     .post("/marketplace/listings/listing-used-iphone-13/unlock-contact")
@@ -156,6 +179,65 @@ test("marketplace listing limit, wallet topup and contact unlock flow", async ()
 
   const listingPage = await buyer.get("/marketplace/listings/listing-used-iphone-13").expect(200);
   assert.match(listingPage.text, /\+2348030000201/);
+});
+
+test("forgot password OTP flow resets password", async () => {
+  const app = createApp();
+  const unique = Date.now();
+  const email = `otp${unique}@hut.app`;
+  const phone = `+23480366${String(unique).slice(-4)}`;
+  const agent = supertest.agent(app);
+
+  await agent
+    .post("/auth/register")
+    .type("form")
+    .send({
+      name: "Otp User",
+      phone,
+      email,
+      password: "Start@123",
+      confirmPassword: "Start@123",
+      next: "/"
+    })
+    .expect(302);
+
+  await agent.post("/auth/logout").send({}).expect(302);
+
+  await agent
+    .post("/auth/forgot-password")
+    .type("form")
+    .send({
+      identifier: email
+    })
+    .expect(302);
+
+  const db = JSON.parse(await fs.readFile(dbFilePath, "utf8"));
+  const otpEntry = [...(db.passwordOtps || [])]
+    .reverse()
+    .find((item) => item.identifier === email && item.status === "active");
+  assert.ok(otpEntry);
+
+  await agent
+    .post("/auth/reset-password")
+    .type("form")
+    .send({
+      identifier: email,
+      otpCode: otpEntry.code,
+      password: "NewPass@123",
+      confirmPassword: "NewPass@123"
+    })
+    .expect(302);
+
+  const loginResponse = await agent
+    .post("/auth/login")
+    .type("form")
+    .send({
+      email,
+      password: "NewPass@123",
+      next: "/"
+    })
+    .expect(302);
+  assert.equal(loginResponse.headers.location, "/");
 });
 
 test("platform owner can access revenue dashboard", async () => {

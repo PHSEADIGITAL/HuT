@@ -236,6 +236,8 @@
   ],
   "marketplaceUnlocks": [],
   "walletTransactions": [],
+  "marketplaceSubscriptions": [],
+  "passwordOtps": [],
   "bookings": [],
   "payments": [],
   "notifications": [],
