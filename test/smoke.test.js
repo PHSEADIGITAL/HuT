@@ -237,6 +237,153 @@ test("marketplace listing limit, wallet topup and contact unlock flow", async ()
   assert.match(listingPage.text, /\+2348030000201/);
 });
 
+test("marketplace points reward works after five paid unlocks", async () => {
+  const app = createApp();
+  const seller = supertest.agent(app);
+  const buyer = supertest.agent(app);
+  const unique = Date.now();
+
+  await seller
+    .post("/auth/register")
+    .type("form")
+    .send({
+      name: "Points Seller",
+      phone: `+23480388${String(unique).slice(-4)}`,
+      email: `pointsseller${unique}@hut.app`,
+      password: "Seller@123",
+      confirmPassword: "Seller@123",
+      next: "/marketplace/new"
+    })
+    .expect(302);
+
+  const createdListingIds = [];
+  for (let index = 0; index < 3; index += 1) {
+    const createResponse = await seller
+      .post("/marketplace/listings")
+      .type("form")
+      .send({
+        title: `Points Listing ${index + 1}`,
+        description: "Listing used for marketplace points reward test.",
+        category: "Electronics",
+        condition: "Used",
+        location: "Bonny Island",
+        neighborhood: "Sandfield",
+        price: "55000"
+      })
+      .expect(302);
+    const match = (createResponse.headers.location || "").match(
+      /^\/marketplace\/listings\/([^/]+)$/
+    );
+    assert.ok(match);
+    createdListingIds.push(match[1]);
+  }
+
+  const buyerEmail = `pointsbuyer${unique}@hut.app`;
+  await buyer
+    .post("/auth/register")
+    .type("form")
+    .send({
+      name: "Points Buyer",
+      phone: `+23480399${String(unique).slice(-4)}`,
+      email: buyerEmail,
+      password: "Buyer@123",
+      confirmPassword: "Buyer@123",
+      next: "/marketplace"
+    })
+    .expect(302);
+
+  await buyer
+    .post("/wallet/topup")
+    .type("form")
+    .send({
+      amount: "1000",
+      reference: `POINTS-${unique}`
+    })
+    .expect(302);
+
+  const paidUnlockTargets = [
+    "listing-used-iphone-13",
+    "listing-dining-set",
+    "listing-ps4-console",
+    createdListingIds[0],
+    createdListingIds[1]
+  ];
+  for (const listingId of paidUnlockTargets) {
+    await buyer
+      .post(`/marketplace/listings/${listingId}/unlock-contact`)
+      .type("form")
+      .send({})
+      .expect(302);
+  }
+
+  const db = JSON.parse(await fs.readFile(dbFilePath, "utf8"));
+  const buyerRow = (db.users || []).find((user) => user.email === buyerEmail);
+  assert.ok(buyerRow);
+  assert.equal(buyerRow.walletBalance, 0);
+  assert.equal(buyerRow.marketplacePaidUnlockCount, 5);
+  assert.equal(buyerRow.marketplacePoints, 5);
+});
+
+test("users can submit seller and hotel reviews with ratings", async () => {
+  const app = createApp();
+  const reviewer = supertest.agent(app);
+  const unique = Date.now();
+
+  await reviewer
+    .post("/auth/register")
+    .type("form")
+    .send({
+      name: "Ratings Reviewer",
+      phone: `+23480377${String(unique).slice(-4)}`,
+      email: `reviewer${unique}@hut.app`,
+      password: "Reviewer@123",
+      confirmPassword: "Reviewer@123",
+      next: "/marketplace"
+    })
+    .expect(302);
+
+  await reviewer
+    .post("/marketplace/sellers/user-demo-customer/reviews")
+    .type("form")
+    .send({
+      rating: "4",
+      comment: "Responsive seller and smooth transaction.",
+      returnTo: "/marketplace/sellers/user-demo-customer"
+    })
+    .expect(302);
+
+  await reviewer
+    .post("/hotels/hotel-seaside-grand/reviews")
+    .type("form")
+    .send({
+      rating: "5",
+      comment: "Clean rooms and very helpful staff.",
+      returnTo: "/hotels/hotel-seaside-grand"
+    })
+    .expect(302);
+
+  const sellerPage = await reviewer.get("/marketplace/sellers/user-demo-customer").expect(200);
+  assert.match(sellerPage.text, /4 \/ 5/);
+  assert.match(sellerPage.text, /Responsive seller and smooth transaction/);
+
+  const hotelPage = await reviewer.get("/hotels/hotel-seaside-grand").expect(200);
+  assert.match(hotelPage.text, /Overall rating:/);
+  assert.match(hotelPage.text, /Clean rooms and very helpful staff/);
+
+  const db = JSON.parse(await fs.readFile(dbFilePath, "utf8"));
+  const sellerReview = (db.marketplaceSellerReviews || []).find(
+    (item) => item.reviewerUserId && item.sellerUserId === "user-demo-customer"
+  );
+  assert.ok(sellerReview);
+  assert.equal(sellerReview.rating, 4);
+
+  const hotelReview = (db.hotelReviews || []).find(
+    (item) => item.reviewerUserId && item.hotelId === "hotel-seaside-grand"
+  );
+  assert.ok(hotelReview);
+  assert.equal(hotelReview.rating, 5);
+});
+
 test("forgot password OTP flow resets password", async () => {
   const app = createApp();
   const unique = Date.now();

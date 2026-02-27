@@ -94,6 +94,12 @@
           <strong><%= listings.length %></strong> item<%= listings.length === 1 ? "" : "s" %>
           found.
         </p>
+        <% if (currentUser) { %>
+          <p class="muted tiny">
+            Points: <strong><%= marketplacePoints || 0 %></strong> • Paid unlocks:
+            <strong><%= marketplacePaidUnlockCount || 0 %></strong> • 5 points unlocks 1 seller contact.
+          </p>
+        <% } %>
       </div>
       <div class="marketplace-cta">
         <% if (currentUser) { %>
@@ -105,6 +111,39 @@
         <% } %>
       </div>
     </article>
+
+    <% if (!currentUser) { %>
+      <article class="card">
+        <h3>Sign in from marketplace</h3>
+        <p class="muted tiny">Authenticate here to buy, unlock contacts, and sell items.</p>
+        <form class="grid-form compact" method="POST" action="/auth/login" data-remember-form="login">
+          <input type="hidden" name="next" value="/marketplace" />
+          <div>
+            <label for="marketLoginEmail">Email</label>
+            <input id="marketLoginEmail" name="email" type="email" required autocomplete="email" />
+          </div>
+          <div>
+            <label for="marketLoginPassword">Password</label>
+            <input
+              id="marketLoginPassword"
+              name="password"
+              type="password"
+              required
+              autocomplete="current-password"
+            />
+          </div>
+          <div class="full">
+            <label class="checkbox">
+              <input type="checkbox" name="rememberCredentials" value="yes" data-remember-checkbox />
+              Save login credentials on this device for autofill
+            </label>
+          </div>
+          <div class="full">
+            <button type="submit">Sign in</button>
+          </div>
+        </form>
+      </article>
+    <% } %>
 
     <article class="card marketplace-category-strip-card">
       <div class="marketplace-category-strip">
@@ -166,7 +205,12 @@
               <%= listing.location || "Location not set" %>
               <% if (listing.neighborhood) { %>• <%= listing.neighborhood %><% } %>
             </p>
-            <p class="muted tiny">Seller: <%= listing.sellerName %></p>
+            <p class="muted tiny">
+              Seller:
+              <a href="/marketplace/sellers/<%= listing.sellerUserId %>"><%= listing.sellerName %></a>
+              • Rating:
+              <%= listing.sellerRatingCount ? `${listing.sellerRatingAverage}/5 (${listing.sellerRatingCount})` : "No ratings yet" %>
+            </p>
             <p class="muted tiny">
               Contact unlock fee: <%= formatNaira(contactUnlockFeeNaira) %> • Bonny Island pickup
             </p>

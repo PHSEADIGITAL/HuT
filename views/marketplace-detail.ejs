@@ -40,7 +40,12 @@
       <strong><%= listing.location || "Location not set" %></strong>
       <% if (listing.neighborhood) { %>• <%= listing.neighborhood %><% } %>
     </p>
-    <p class="muted tiny">Seller: <strong><%= listing.sellerName %></strong></p>
+    <p class="muted tiny">
+      Seller:
+      <strong><a href="/marketplace/sellers/<%= listing.sellerUserId %>"><%= listing.sellerName %></a></strong>
+      • Rating:
+      <%= sellerRating.count ? `${sellerRating.average}/5 (${sellerRating.count})` : "No ratings yet" %>
+    </p>
     <p class="muted tiny">
       Contact:
       <% if (canViewContact && seller) { %>
@@ -54,7 +59,10 @@
       <form method="POST" action="/marketplace/listings/<%= listing.id %>/unlock-contact">
         <button type="submit">Unlock seller contact for <%= formatNaira(contactUnlockFeeNaira) %></button>
       </form>
-      <p class="muted tiny">Wallet balance: <%= formatNaira(walletBalance || 0) %> • <a href="/wallet">Fund wallet</a></p>
+      <p class="muted tiny">
+        Wallet balance: <%= formatNaira(walletBalance || 0) %> • Points: <%= marketplacePoints || 0 %> •
+        <a href="/wallet">Fund wallet</a>
+      </p>
     <% } %>
 
     <% if (!currentUser) { %>

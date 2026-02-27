@@ -18,6 +18,16 @@
     <h3>Total Unlocks</h3>
     <p class="metric"><%= unlocks.length %></p>
   </article>
+  <article class="card">
+    <h3>Marketplace Points</h3>
+    <p class="metric"><%= marketplacePoints || 0 %></p>
+    <p class="muted tiny">5 points can unlock 1 seller contact.</p>
+  </article>
+  <article class="card">
+    <h3>Paid Unlock Count</h3>
+    <p class="metric"><%= marketplacePaidUnlockCount || 0 %></p>
+    <p class="muted tiny">Earn 5 points every 5 paid unlocks.</p>
+  </article>
 </section>
 
 <section class="card">

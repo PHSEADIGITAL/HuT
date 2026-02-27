@@ -41,10 +41,22 @@ function ensureDataShape(data) {
   if (!Array.isArray(data.passwordOtps)) {
     data.passwordOtps = [];
   }
+  if (!Array.isArray(data.marketplaceSellerReviews)) {
+    data.marketplaceSellerReviews = [];
+  }
+  if (!Array.isArray(data.hotelReviews)) {
+    data.hotelReviews = [];
+  }
 
   for (const user of data.users) {
     if (!Number.isFinite(user.walletBalance)) {
       user.walletBalance = 0;
+    }
+    if (!Number.isFinite(user.marketplacePoints)) {
+      user.marketplacePoints = 0;
+    }
+    if (!Number.isFinite(user.marketplacePaidUnlockCount)) {
+      user.marketplacePaidUnlockCount = 0;
     }
   }
 }

@@ -249,5 +249,7 @@
   "notifications": [],
   "premiumSubscriptions": [],
   "fraudEvents": [],
-  "paymentSessions": []
+  "paymentSessions": [],
+  "marketplaceSellerReviews": [],
+  "hotelReviews": []
 }
