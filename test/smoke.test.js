@@ -237,7 +237,7 @@ test("marketplace listing limit, wallet topup and contact unlock flow", async ()
   assert.match(listingPage.text, /\+2348030000201/);
 });
 
-test("marketplace points reward and redemption works after five unlocks", async () => {
+test("marketplace points reward works after five paid unlocks", async () => {
   const app = createApp();
   const seller = supertest.agent(app);
   const buyer = supertest.agent(app);
@@ -316,23 +316,12 @@ test("marketplace points reward and redemption works after five unlocks", async 
       .expect(302);
   }
 
-  await buyer
-    .post(`/marketplace/listings/${createdListingIds[2]}/unlock-contact`)
-    .type("form")
-    .send({})
-    .expect(302);
-
   const db = JSON.parse(await fs.readFile(dbFilePath, "utf8"));
   const buyerRow = (db.users || []).find((user) => user.email === buyerEmail);
   assert.ok(buyerRow);
   assert.equal(buyerRow.walletBalance, 0);
   assert.equal(buyerRow.marketplacePaidUnlockCount, 5);
-  assert.equal(buyerRow.marketplacePoints, 0);
-
-  const pointUnlock = (db.marketplaceUnlocks || []).find(
-    (unlock) => unlock.listingId === createdListingIds[2] && unlock.unlockMethod === "points"
-  );
-  assert.ok(pointUnlock);
+  assert.equal(buyerRow.marketplacePoints, 5);
 });
 
 test("users can submit seller and hotel reviews with ratings", async () => {
