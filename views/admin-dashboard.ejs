@@ -25,6 +25,35 @@
 </section>
 
 <section class="card">
+  <h2>Commercial settings</h2>
+  <p>
+    Current commission rate:
+    <strong><%= formatPercent(hotel.commissionRate || platform.defaultCommissionRate) %></strong>
+  </p>
+  <% if (currentUser && currentUser.role === "platform_admin") { %>
+    <form class="commission-form" method="POST" action="/admin/hotels/<%= hotel.id %>/commission">
+      <input type="hidden" name="returnTo" value="/admin/hotels/<%= hotel.id %>/dashboard" />
+      <div>
+        <label for="commissionRateInput">Commission (%)</label>
+        <input
+          id="commissionRateInput"
+          name="commissionRate"
+          type="number"
+          min="5"
+          max="30"
+          step="0.1"
+          value="<%= Number(((hotel.commissionRate || platform.defaultCommissionRate) * 100).toFixed(2)) %>"
+          required
+        />
+      </div>
+      <button type="submit">Update commission</button>
+    </form>
+  <% } else { %>
+    <p class="muted tiny">Only platform owner accounts can update commission rates.</p>
+  <% } %>
+</section>
+
+<section class="card">
   <h2>Premium listing subscription</h2>
   <p>
     Status:
@@ -59,23 +88,64 @@
   </form>
 
   <div class="table-wrap">
-    <table>
+    <table class="room-category-table">
       <thead>
         <tr>
           <th>Room</th>
+          <th>Price / Night</th>
           <th>Total Units</th>
           <th>Booked</th>
           <th>Available</th>
+          <th>Update Inventory + Price</th>
         </tr>
       </thead>
       <tbody>
+        <% if (!availability.length) { %>
+          <tr>
+            <td colspan="6" class="muted">No room categories configured for this hotel yet.</td>
+          </tr>
+        <% } %>
         <% availability.forEach((room) => { %>
           <tr data-room-id="<%= room.roomId %>">
             <td><%= room.category %></td>
+            <td><%= formatNaira(room.pricePerNight) %></td>
             <td><%= room.totalUnits %></td>
             <td class="booked-value"><%= room.activeBookings %></td>
             <td class="availability-value <%= room.soldOut ? 'danger' : 'success' %>">
               <%= room.availableUnits %>
+            </td>
+            <td>
+              <form
+                class="room-update-form"
+                method="POST"
+                action="/admin/hotels/<%= hotel.id %>/rooms/<%= room.roomId %>"
+              >
+                <div>
+                  <label for="price-<%= room.roomId %>">Price (NGN)</label>
+                  <input
+                    id="price-<%= room.roomId %>"
+                    type="number"
+                    name="pricePerNight"
+                    min="1000"
+                    step="100"
+                    value="<%= room.pricePerNight %>"
+                    required
+                  />
+                </div>
+                <div>
+                  <label for="units-<%= room.roomId %>">Units</label>
+                  <input
+                    id="units-<%= room.roomId %>"
+                    type="number"
+                    name="totalUnits"
+                    min="1"
+                    step="1"
+                    value="<%= room.totalUnits %>"
+                    required
+                  />
+                </div>
+                <button type="submit">Save</button>
+              </form>
             </td>
           </tr>
         <% }) %>

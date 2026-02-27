@@ -6,7 +6,8 @@
 </section>
 
 <section class="card">
-  <div class="marketplace-actions">
+  <h2>Find products</h2>
+  <div class="marketplace-actions search-mode">
     <form class="marketplace-filter-form" method="GET" action="/marketplace">
       <div class="marketplace-filter-field">
         <label for="q">Search</label>
@@ -60,6 +61,24 @@
         <a class="button-link" href="/auth/login?next=%2Fmarketplace">Sign in to sell</a>
       <% } %>
     </div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Categories</h2>
+  <div class="marketplace-category-grid">
+    <% categoryCards.forEach((categoryCard) => { %>
+      <a
+        class="marketplace-category-thumb <%= categoryCard.active ? 'active' : '' %>"
+        href="<%= categoryCard.href %>"
+      >
+        <img src="<%= categoryCard.imageUrl %>" alt="<%= categoryCard.name %> category" />
+        <span class="category-name"><%= categoryCard.name %></span>
+        <span class="muted tiny">
+          <%= categoryCard.listingCount %> item<%= categoryCard.listingCount === 1 ? "" : "s" %>
+        </span>
+      </a>
+    <% }) %>
   </div>
 </section>
 

@@ -257,3 +257,103 @@ test("platform owner can access revenue dashboard", async () => {
   const ownerDashboard = await owner.get("/admin/owner-dashboard").expect(200);
   assert.match(ownerDashboard.text, /Platform Owner Dashboard/);
 });
+
+test("onboarding supports room setup, commission updates, and hotel-admin room edits", async () => {
+  const app = createApp();
+  const owner = supertest.agent(app);
+
+  await owner
+    .post("/auth/login")
+    .type("form")
+    .send({
+      email: "owner@hut.app",
+      password: "Owner@123",
+      next: "/admin/hotels/new"
+    })
+    .expect(302);
+
+  const unique = Date.now();
+  const adminEmail = `newadmin${unique}@hut.app`;
+  const adminPassword = "HotelAdmin@123";
+  const onboardingResponse = await owner
+    .post("/admin/hotels")
+    .type("form")
+    .send({
+      name: `Lagoon Horizon ${unique}`,
+      description: "Freshly onboarded property for workflow test.",
+      location: "Bonny Mainland",
+      bankName: "Demo Bank",
+      bankAccount: "1122334455",
+      cancellationPolicy: "flexible",
+      commissionRate: "14",
+      pickupFee: "6500",
+      standardRoomUnits: "6",
+      deluxeRoomUnits: "3",
+      executiveSuiteRoomUnits: "2",
+      adminName: "Lagoon Admin",
+      adminEmail,
+      adminPassword
+    })
+    .expect(302);
+
+  const location = onboardingResponse.headers.location || "";
+  const hotelMatch = location.match(/^\/admin\/hotels\/([^/]+)\/dashboard$/);
+  assert.ok(hotelMatch);
+  const hotelId = decodeURIComponent(hotelMatch[1]);
+
+  let db = JSON.parse(await fs.readFile(dbFilePath, "utf8"));
+  const createdHotel = db.hotels.find((hotel) => hotel.id === hotelId);
+  assert.ok(createdHotel);
+  assert.equal(createdHotel.commissionRate, 0.14);
+
+  const createdRooms = db.rooms.filter((room) => room.hotelId === hotelId);
+  assert.equal(createdRooms.length, 3);
+  assert.equal(createdRooms.find((room) => room.category === "Standard")?.totalUnits, 6);
+  assert.equal(createdRooms.find((room) => room.category === "Deluxe")?.totalUnits, 3);
+  assert.equal(createdRooms.find((room) => room.category === "Executive Suites")?.totalUnits, 2);
+
+  await owner
+    .post(`/admin/hotels/${hotelId}/commission`)
+    .type("form")
+    .send({
+      commissionRate: "19.5",
+      returnTo: "/admin/owner-dashboard"
+    })
+    .expect(302);
+
+  db = JSON.parse(await fs.readFile(dbFilePath, "utf8"));
+  const adjustedHotel = db.hotels.find((hotel) => hotel.id === hotelId);
+  assert.ok(adjustedHotel);
+  assert.equal(adjustedHotel.commissionRate, 0.195);
+
+  const standardRoom = db.rooms.find(
+    (room) => room.hotelId === hotelId && room.category === "Standard"
+  );
+  assert.ok(standardRoom);
+
+  const hotelAdmin = supertest.agent(app);
+  await hotelAdmin
+    .post("/auth/login")
+    .type("form")
+    .send({
+      email: adminEmail,
+      password: adminPassword,
+      next: `/admin/hotels/${hotelId}/dashboard`
+    })
+    .expect(302);
+
+  await hotelAdmin
+    .post(`/admin/hotels/${hotelId}/rooms/${standardRoom.id}`)
+    .type("form")
+    .send({
+      pricePerNight: "64000",
+      totalUnits: "7"
+    })
+    .expect(302);
+
+  db = JSON.parse(await fs.readFile(dbFilePath, "utf8"));
+  const updatedStandardRoom = db.rooms.find((room) => room.id === standardRoom.id);
+  assert.ok(updatedStandardRoom);
+  assert.equal(updatedStandardRoom.pricePerNight, 64000);
+  assert.equal(updatedStandardRoom.totalUnits, 7);
+});
