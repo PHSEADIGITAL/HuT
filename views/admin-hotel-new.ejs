@@ -16,8 +16,24 @@
       <input id="location" name="location" type="text" required />
     </div>
     <div class="full">
-      <label for="description">Description</label>
-      <textarea id="description" name="description" rows="3" required></textarea>
+      <label for="address">Hotel address</label>
+      <input
+        id="address"
+        name="address"
+        type="text"
+        placeholder="Street address, area, Bonny Island"
+        required
+      />
+    </div>
+    <div class="full">
+      <label for="about">About section</label>
+      <textarea
+        id="about"
+        name="about"
+        rows="4"
+        placeholder="Write a short overview of the hotel, what guests can expect, and unique selling points."
+        required
+      ></textarea>
     </div>
     <div>
       <label for="bankName">Bank name</label>
@@ -34,6 +50,30 @@
     <div>
       <label for="pickupFee">Pickup fee (NGN)</label>
       <input id="pickupFee" name="pickupFee" type="number" min="0" value="7000" />
+    </div>
+    <div class="full">
+      <h3>Hotel amenities</h3>
+      <p class="muted tiny">Tick all amenities available at this hotel.</p>
+      <div class="option-check-grid">
+        <% amenityOptions.forEach((item) => { %>
+          <label class="checkbox option-check-item">
+            <input type="checkbox" name="amenities" value="<%= item %>" />
+            <span><%= item %></span>
+          </label>
+        <% }) %>
+      </div>
+    </div>
+    <div class="full">
+      <h3>Room features</h3>
+      <p class="muted tiny">Tick room features available in guest rooms.</p>
+      <div class="option-check-grid">
+        <% roomFeatureOptions.forEach((item) => { %>
+          <label class="checkbox option-check-item">
+            <input type="checkbox" name="roomFeatures" value="<%= item %>" />
+            <span><%= item %></span>
+          </label>
+        <% }) %>
+      </div>
     </div>
     <div class="full">
       <h3>Room inventory setup</h3>

@@ -280,8 +280,9 @@ test("onboarding supports room setup, commission updates, and hotel-admin room e
     .type("form")
     .send({
       name: `Lagoon Horizon ${unique}`,
-      description: "Freshly onboarded property for workflow test.",
+      about: "Freshly onboarded property for workflow test.",
       location: "Bonny Mainland",
+      address: "12 Waterside Close, Bonny Island",
       bankName: "Demo Bank",
       bankAccount: "1122334455",
       cancellationPolicy: "flexible",
@@ -290,6 +291,8 @@ test("onboarding supports room setup, commission updates, and hotel-admin room e
       standardRoomUnits: "6",
       deluxeRoomUnits: "3",
       executiveSuiteRoomUnits: "2",
+      amenities: ["Secured Parking", "Free-Wifi", "Swimming Pool"],
+      roomFeatures: ["Air-Conditioner", "Walk-In Shower"],
       adminName: "Lagoon Admin",
       adminEmail,
       adminPassword
@@ -305,6 +308,13 @@ test("onboarding supports room setup, commission updates, and hotel-admin room e
   const createdHotel = db.hotels.find((hotel) => hotel.id === hotelId);
   assert.ok(createdHotel);
   assert.equal(createdHotel.commissionRate, 0.14);
+  assert.equal(createdHotel.address, "12 Waterside Close, Bonny Island");
+  assert.equal(createdHotel.about, "Freshly onboarded property for workflow test.");
+  assert.deepEqual(createdHotel.amenities, [
+    "Secured Parking",
+    "Free-Wifi",
+    "Swimming Pool"
+  ]);
 
   const createdRooms = db.rooms.filter((room) => room.hotelId === hotelId);
   assert.equal(createdRooms.length, 3);
@@ -326,10 +336,38 @@ test("onboarding supports room setup, commission updates, and hotel-admin room e
   assert.ok(adjustedHotel);
   assert.equal(adjustedHotel.commissionRate, 0.195);
 
+  await owner
+    .post(`/admin/hotels/${hotelId}/profile`)
+    .type("form")
+    .send({
+      name: `Lagoon Horizon ${unique} Updated`,
+      location: "Bonny Mainland",
+      address: "45 Creek Road, Bonny Island",
+      about: "Updated profile text from platform owner.",
+      bankName: "Demo Bank",
+      bankAccount: "1122334455",
+      cancellationPolicy: "moderate",
+      commissionRate: "17",
+      pickupFee: "7000",
+      amenities: ["Fitness Center", "Bar/Lounge"],
+      roomFeatures: ["Cable/Satelite TV", "Seating-Area"]
+    })
+    .expect(302);
+
+  db = JSON.parse(await fs.readFile(dbFilePath, "utf8"));
+  const editedHotel = db.hotels.find((hotel) => hotel.id === hotelId);
+  assert.ok(editedHotel);
+  assert.equal(editedHotel.name, `Lagoon Horizon ${unique} Updated`);
+  assert.equal(editedHotel.address, "45 Creek Road, Bonny Island");
+  assert.equal(editedHotel.cancellationPolicy, "moderate");
+  assert.equal(editedHotel.commissionRate, 0.17);
+  assert.deepEqual(editedHotel.amenities, ["Fitness Center", "Bar/Lounge"]);
+
   const standardRoom = db.rooms.find(
     (room) => room.hotelId === hotelId && room.category === "Standard"
   );
   assert.ok(standardRoom);
+  assert.deepEqual(standardRoom.highlights, ["Cable/Satelite TV", "Seating-Area"]);
 
   const hotelAdmin = supertest.agent(app);
   await hotelAdmin

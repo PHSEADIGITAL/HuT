@@ -3,6 +3,9 @@
 <section class="hero small">
   <h1><%= hotel.name %> - Admin Dashboard</h1>
   <p class="muted"><%= hotel.location %></p>
+  <% if (hotel.address) { %>
+    <p class="muted tiny"><%= hotel.address %></p>
+  <% } %>
 </section>
 
 <section class="stats-grid">
@@ -31,27 +34,130 @@
     <strong><%= formatPercent(hotel.commissionRate || platform.defaultCommissionRate) %></strong>
   </p>
   <% if (currentUser && currentUser.role === "platform_admin") { %>
-    <form class="commission-form" method="POST" action="/admin/hotels/<%= hotel.id %>/commission">
-      <input type="hidden" name="returnTo" value="/admin/hotels/<%= hotel.id %>/dashboard" />
-      <div>
-        <label for="commissionRateInput">Commission (%)</label>
-        <input
-          id="commissionRateInput"
-          name="commissionRate"
-          type="number"
-          min="5"
-          max="30"
-          step="0.1"
-          value="<%= Number(((hotel.commissionRate || platform.defaultCommissionRate) * 100).toFixed(2)) %>"
-          required
-        />
-      </div>
-      <button type="submit">Update commission</button>
-    </form>
+    <details class="inline-editor">
+      <summary>Adjust commission rate</summary>
+      <form class="commission-form" method="POST" action="/admin/hotels/<%= hotel.id %>/commission">
+        <input type="hidden" name="returnTo" value="/admin/hotels/<%= hotel.id %>/dashboard" />
+        <div>
+          <label for="commissionRateInput">Commission (%)</label>
+          <input
+            id="commissionRateInput"
+            name="commissionRate"
+            type="number"
+            min="5"
+            max="30"
+            step="0.1"
+            value="<%= Number(((hotel.commissionRate || platform.defaultCommissionRate) * 100).toFixed(2)) %>"
+            required
+          />
+        </div>
+        <button type="submit">Update commission</button>
+      </form>
+    </details>
   <% } else { %>
     <p class="muted tiny">Only platform owner accounts can update commission rates.</p>
   <% } %>
 </section>
+
+<% if (currentUser && currentUser.role === "platform_admin") { %>
+  <section class="card">
+    <h2>Edit hotel profile</h2>
+    <p class="muted tiny">Platform owners can edit all hotel profile fields after onboarding.</p>
+    <details class="inline-editor">
+      <summary>Edit all hotel areas</summary>
+      <form class="grid-form" method="POST" action="/admin/hotels/<%= hotel.id %>/profile">
+        <div>
+          <label for="name">Hotel name</label>
+          <input id="name" name="name" type="text" value="<%= hotel.name %>" required />
+        </div>
+        <div>
+          <label for="location">Location</label>
+          <input id="location" name="location" type="text" value="<%= hotel.location %>" required />
+        </div>
+        <div class="full">
+          <label for="address">Address</label>
+          <input id="address" name="address" type="text" value="<%= hotel.address || '' %>" required />
+        </div>
+        <div class="full">
+          <label for="about">About section</label>
+          <textarea id="about" name="about" rows="4" required><%= hotel.about || hotel.description || '' %></textarea>
+        </div>
+        <div>
+          <label for="bankName">Bank name</label>
+          <input id="bankName" name="bankName" type="text" value="<%= hotel.bankName %>" required />
+        </div>
+        <div>
+          <label for="bankAccount">Bank account</label>
+          <input id="bankAccount" name="bankAccount" type="text" value="<%= hotel.bankAccount %>" required />
+        </div>
+        <div>
+          <label for="cancellationPolicy">Cancellation policy</label>
+          <select id="cancellationPolicy" name="cancellationPolicy">
+            <option value="flexible" <%= hotel.cancellationPolicy === "flexible" ? "selected" : "" %>>Flexible</option>
+            <option value="moderate" <%= hotel.cancellationPolicy === "moderate" ? "selected" : "" %>>Moderate</option>
+            <option value="strict" <%= hotel.cancellationPolicy === "strict" ? "selected" : "" %>>Strict</option>
+          </select>
+        </div>
+        <div>
+          <label for="pickupFee">Pickup fee (NGN)</label>
+          <input id="pickupFee" name="pickupFee" type="number" min="0" value="<%= hotel.pickupFee || 0 %>" />
+        </div>
+        <div>
+          <label for="commissionRateEdit">Commission (%)</label>
+          <input
+            id="commissionRateEdit"
+            name="commissionRate"
+            type="number"
+            min="5"
+            max="30"
+            step="0.1"
+            value="<%= Number(((hotel.commissionRate || platform.defaultCommissionRate) * 100).toFixed(2)) %>"
+            required
+          />
+        </div>
+        <div class="full">
+          <label for="coverImage">Cover image URL</label>
+          <input id="coverImage" name="coverImage" type="url" value="<%= hotel.coverImage || '' %>" />
+        </div>
+        <div class="full">
+          <label for="galleryImages">Gallery image URLs (comma-separated)</label>
+          <textarea id="galleryImages" name="galleryImages" rows="2"><%= Array.isArray(hotel.galleryImages) ? hotel.galleryImages.join(", ") : (hotel.galleryImages || "") %></textarea>
+        </div>
+        <div class="full">
+          <h3>Hotel amenities</h3>
+          <div class="option-check-grid">
+            <% amenityOptions.forEach((item) => { %>
+              <label class="checkbox option-check-item">
+                <input type="checkbox" name="amenities" value="<%= item %>" <%= (hotel.amenities || []).includes(item) ? "checked" : "" %> />
+                <span><%= item %></span>
+              </label>
+            <% }) %>
+          </div>
+        </div>
+        <div class="full">
+          <h3>Room features</h3>
+          <div class="option-check-grid">
+            <% roomFeatureOptions.forEach((item) => { %>
+              <label class="checkbox option-check-item">
+                <input type="checkbox" name="roomFeatures" value="<%= item %>" <%= (selectedRoomFeatures || []).includes(item) ? "checked" : "" %> />
+                <span><%= item %></span>
+              </label>
+            <% }) %>
+          </div>
+        </div>
+        <div class="full">
+          <label class="checkbox">
+            <input type="checkbox" name="premiumListingActive" <%= hotel.premiumListingActive ? "checked" : "" %> />
+            Premium listing active
+          </label>
+        </div>
+        <div class="full">
+          <button type="submit">Save hotel profile</button>
+        </div>
+      </form>
+    </details>
+  </section>
+<% } %>
 
 <section class="card">
   <h2>Premium listing subscription</h2>
@@ -115,37 +221,40 @@
               <%= room.availableUnits %>
             </td>
             <td>
-              <form
-                class="room-update-form"
-                method="POST"
-                action="/admin/hotels/<%= hotel.id %>/rooms/<%= room.roomId %>"
-              >
-                <div>
-                  <label for="price-<%= room.roomId %>">Price (NGN)</label>
-                  <input
-                    id="price-<%= room.roomId %>"
-                    type="number"
-                    name="pricePerNight"
-                    min="1000"
-                    step="100"
-                    value="<%= room.pricePerNight %>"
-                    required
-                  />
-                </div>
-                <div>
-                  <label for="units-<%= room.roomId %>">Units</label>
-                  <input
-                    id="units-<%= room.roomId %>"
-                    type="number"
-                    name="totalUnits"
-                    min="1"
-                    step="1"
-                    value="<%= room.totalUnits %>"
-                    required
-                  />
-                </div>
-                <button type="submit">Save</button>
-              </form>
+              <details class="inline-editor compact">
+                <summary>Adjust</summary>
+                <form
+                  class="room-update-form"
+                  method="POST"
+                  action="/admin/hotels/<%= hotel.id %>/rooms/<%= room.roomId %>"
+                >
+                  <div>
+                    <label for="price-<%= room.roomId %>">Price (NGN)</label>
+                    <input
+                      id="price-<%= room.roomId %>"
+                      type="number"
+                      name="pricePerNight"
+                      min="1000"
+                      step="100"
+                      value="<%= room.pricePerNight %>"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label for="units-<%= room.roomId %>">Units</label>
+                    <input
+                      id="units-<%= room.roomId %>"
+                      type="number"
+                      name="totalUnits"
+                      min="1"
+                      step="1"
+                      value="<%= room.totalUnits %>"
+                      required
+                    />
+                  </div>
+                  <button type="submit">Save</button>
+                </form>
+              </details>
             </td>
           </tr>
         <% }) %>
