@@ -1,31 +1,30 @@
 <%- include("partials/header", { title: "Marketplace" }) %>
+<%- include("partials/marketplace-masthead", {
+  categories,
+  searchQuery: filters.q,
+  searchCategory: filters.category
+}) %>
 
-<section class="hero small">
-  <h1>Bonny Island Marketplace</h1>
-  <p>Buy and sell second-hand items. Base plan includes 4 listings monthly, with paid upgrades available.</p>
-</section>
-
-<section class="card">
-  <h2>Find products</h2>
-  <div class="marketplace-actions search-mode">
-    <form class="marketplace-filter-form" method="GET" action="/marketplace">
-      <div class="marketplace-filter-field">
-        <label for="q">Search</label>
-        <input id="q" name="q" value="<%= filters.q %>" placeholder="Phone, furniture, electronics..." />
-      </div>
+<section class="marketplace-ebay-layout">
+  <aside class="card marketplace-filter-sidebar">
+    <h3>Filter results</h3>
+    <form class="marketplace-filter-stack" method="GET" action="/marketplace">
+      <input type="hidden" name="q" value="<%= filters.q %>" />
       <div class="marketplace-filter-field">
         <label for="category">Category</label>
         <select id="category" name="category">
           <option value="">All categories</option>
           <% categories.forEach((category) => { %>
-            <option value="<%= category %>" <%= filters.category === category ? "selected" : "" %>><%= category %></option>
+            <option value="<%= category %>" <%= filters.category === category ? "selected" : "" %>>
+              <%= category %>
+            </option>
           <% }) %>
         </select>
       </div>
       <div class="marketplace-filter-field">
         <label for="condition">Condition</label>
         <select id="condition" name="condition">
-          <option value="">All</option>
+          <option value="">All conditions</option>
           <% conditions.forEach((item) => { %>
             <option value="<%= item %>" <%= filters.condition === item ? "selected" : "" %>><%= item %></option>
           <% }) %>
@@ -42,96 +41,120 @@
       <div class="marketplace-filter-field">
         <label for="sort">Sort</label>
         <select id="sort" name="sort">
-          <option value="newest" <%= filters.sort === "newest" ? "selected" : "" %>>Newest</option>
-          <option value="price_asc" <%= filters.sort === "price_asc" ? "selected" : "" %>>Price low-high</option>
-          <option value="price_desc" <%= filters.sort === "price_desc" ? "selected" : "" %>>Price high-low</option>
+          <option value="newest" <%= filters.sort === "newest" ? "selected" : "" %>>Best Match / Newest</option>
+          <option value="price_asc" <%= filters.sort === "price_asc" ? "selected" : "" %>>Price + Shipping: lowest first</option>
+          <option value="price_desc" <%= filters.sort === "price_desc" ? "selected" : "" %>>Price + Shipping: highest first</option>
         </select>
       </div>
       <div class="marketplace-filter-field">
-        <button type="submit">Apply filters</button>
+        <button type="submit">Apply</button>
       </div>
     </form>
 
-    <div class="marketplace-cta">
-      <% if (currentUser) { %>
-        <a class="button-link" href="/marketplace/new">Create listing</a>
-        <a class="ghost-link" href="/marketplace/my-listings">My listings</a>
-        <a class="ghost-link" href="/wallet">Wallet (<%= formatNaira(walletBalance || 0) %>)</a>
-      <% } else { %>
-        <a class="button-link" href="/auth/login?next=%2Fmarketplace">Sign in to sell</a>
-      <% } %>
-    </div>
-  </div>
-</section>
+    <hr />
 
-<section class="card">
-  <h2>Categories</h2>
-  <div class="marketplace-category-grid">
-    <% categoryCards.forEach((categoryCard) => { %>
-      <a
-        class="marketplace-category-thumb <%= categoryCard.active ? 'active' : '' %>"
-        href="<%= categoryCard.href %>"
-      >
-        <img src="<%= categoryCard.imageUrl %>" alt="<%= categoryCard.name %> category" />
-        <span class="category-name"><%= categoryCard.name %></span>
-        <span class="muted tiny">
-          <%= categoryCard.listingCount %> item<%= categoryCard.listingCount === 1 ? "" : "s" %>
-        </span>
-      </a>
-    <% }) %>
-  </div>
-</section>
-
-<% if (currentUser && limitState) { %>
-  <section class="card">
-    <h3>Your listing allowance this month</h3>
-    <p class="muted">
-      Used <strong><%= limitState.used %></strong> of <strong><%= limitState.includedLimit %></strong>
-      listings (base 4 + <%= limitState.extraListings %> from plans).
-    </p>
-    <% if (activePlanSubscriptions.length) { %>
-      <p class="muted tiny">
-        Active plans:
-        <%= activePlanSubscriptions.map((item) => item.planName).join(", ") %>
-      </p>
-    <% } %>
-    <div class="marketplace-plan-grid">
-      <% marketplacePlans.forEach((plan) => { %>
-        <article class="card">
-          <h4><%= plan.name %></h4>
-          <p class="market-price"><%= formatNaira(plan.amount) %></p>
-          <p class="muted tiny"><%= plan.description %></p>
-          <p class="muted tiny">Adds <%= plan.extraListings %> listings/month</p>
-          <form method="POST" action="/marketplace/plans/purchase">
-            <input type="hidden" name="planId" value="<%= plan.id %>" />
-            <button type="submit" class="ghost-btn">Buy with wallet</button>
-          </form>
-        </article>
+    <h3>Shop by category</h3>
+    <ul class="marketplace-category-list">
+      <% categoryCards.forEach((categoryCard) => { %>
+        <li>
+          <a class="<%= categoryCard.active ? 'active' : '' %>" href="<%= categoryCard.href %>">
+            <span><%= categoryCard.name %></span>
+            <small><%= categoryCard.listingCount %></small>
+          </a>
+        </li>
       <% }) %>
-    </div>
-  </section>
-<% } %>
+    </ul>
+  </aside>
 
-<section class="marketplace-grid">
-  <% if (!listings.length) { %>
-    <article class="card">
-      <h3>No items found.</h3>
-      <p class="muted">Try adjusting your filter settings.</p>
-    </article>
-  <% } %>
-  <% listings.forEach((listing) => { %>
-    <article class="card market-item-card">
-      <a href="/marketplace/listings/<%= listing.id %>">
-        <img src="<%= listing.primaryImage %>" alt="<%= listing.title %>" class="market-item-image" />
-      </a>
-      <div class="market-item-body">
-        <h3><a href="/marketplace/listings/<%= listing.id %>"><%= listing.title %></a></h3>
-        <p class="muted"><%= listing.category %> • <%= listing.condition %></p>
-        <p class="market-price"><%= formatNaira(listing.price) %></p>
-        <p class="muted tiny">Seller: <%= listing.sellerName %> • Contact hidden until unlock (<%= formatNaira(contactUnlockFeeNaira) %>)</p>
+  <section class="marketplace-results-panel">
+    <article class="card marketplace-results-meta">
+      <div>
+        <h1>Bonny Island Marketplace</h1>
+        <p class="muted">
+          <strong><%= listings.length %></strong> item<%= listings.length === 1 ? "" : "s" %>
+          found.
+        </p>
+      </div>
+      <div class="marketplace-cta">
+        <% if (currentUser) { %>
+          <a class="button-link" href="/marketplace/new">Sell an item</a>
+          <a class="ghost-link" href="/marketplace/my-listings">My listings</a>
+          <a class="ghost-link" href="/wallet">Wallet (<%= formatNaira(walletBalance || 0) %>)</a>
+        <% } else { %>
+          <a class="button-link" href="/auth/login?next=%2Fmarketplace">Sign in to sell</a>
+        <% } %>
       </div>
     </article>
-  <% }) %>
+
+    <article class="card marketplace-category-strip-card">
+      <div class="marketplace-category-strip">
+        <% categoryCards.forEach((categoryCard) => { %>
+          <a class="marketplace-strip-item <%= categoryCard.active ? 'active' : '' %>" href="<%= categoryCard.href %>">
+            <img src="<%= categoryCard.imageUrl %>" alt="<%= categoryCard.name %> category" />
+            <span><%= categoryCard.name %></span>
+          </a>
+        <% }) %>
+      </div>
+    </article>
+
+    <% if (currentUser && limitState) { %>
+      <article class="card">
+        <h3>Your listing allowance this month</h3>
+        <p class="muted">
+          Used <strong><%= limitState.used %></strong> of <strong><%= limitState.includedLimit %></strong>
+          listings (base 4 + <%= limitState.extraListings %> from plans).
+        </p>
+        <% if (activePlanSubscriptions.length) { %>
+          <p class="muted tiny">
+            Active plans:
+            <%= activePlanSubscriptions.map((item) => item.planName).join(", ") %>
+          </p>
+        <% } %>
+        <div class="marketplace-plan-grid">
+          <% marketplacePlans.forEach((plan) => { %>
+            <article class="card">
+              <h4><%= plan.name %></h4>
+              <p class="market-price"><%= formatNaira(plan.amount) %></p>
+              <p class="muted tiny"><%= plan.description %></p>
+              <p class="muted tiny">Adds <%= plan.extraListings %> listings/month</p>
+              <form method="POST" action="/marketplace/plans/purchase">
+                <input type="hidden" name="planId" value="<%= plan.id %>" />
+                <button type="submit" class="ghost-btn">Buy with wallet</button>
+              </form>
+            </article>
+          <% }) %>
+        </div>
+      </article>
+    <% } %>
+
+    <section class="marketplace-result-list">
+      <% if (!listings.length) { %>
+        <article class="card">
+          <h3>No items found</h3>
+          <p class="muted">Try adjusting category, condition, or price filters.</p>
+        </article>
+      <% } %>
+      <% listings.forEach((listing) => { %>
+        <article class="market-result-card">
+          <a class="market-result-media" href="/marketplace/listings/<%= listing.id %>">
+            <img src="<%= listing.primaryImage %>" alt="<%= listing.title %>" />
+          </a>
+          <div class="market-result-main">
+            <h3><a href="/marketplace/listings/<%= listing.id %>"><%= listing.title %></a></h3>
+            <p class="muted tiny"><%= listing.category %> • <%= listing.condition %></p>
+            <p class="muted tiny">Seller: <%= listing.sellerName %></p>
+            <p class="muted tiny">
+              Contact unlock fee: <%= formatNaira(contactUnlockFeeNaira) %> • Bonny Island pickup
+            </p>
+          </div>
+          <div class="market-result-side">
+            <p class="market-price"><%= formatNaira(listing.price) %></p>
+            <a class="button-link small full-width" href="/marketplace/listings/<%= listing.id %>">View item</a>
+          </div>
+        </article>
+      <% }) %>
+    </section>
+  </section>
 </section>
 
 <%- include("partials/footer", { platform }) %>

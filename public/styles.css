@@ -935,6 +935,321 @@ hr {
   margin: 0.9rem 0;
 }
 
+/* Marketplace redesign (ebay-inspired) */
+body.marketplace-mode {
+  background: #f5f5f6;
+}
+
+body.marketplace-mode .topbar {
+  background: #ffffff;
+  border-bottom: 1px solid #dfe3ea;
+}
+
+body.marketplace-mode .platform-tabs-wrap {
+  display: none;
+}
+
+body.marketplace-mode .brand,
+body.marketplace-mode .nav a,
+body.marketplace-mode .ghost-link,
+body.marketplace-mode .auth-actions .tiny,
+body.marketplace-mode .auth-actions .tiny strong {
+  color: #111827;
+}
+
+body.marketplace-mode .ghost-btn {
+  color: #1f2937;
+  border-color: #cfd8e6;
+  background: #ffffff;
+}
+
+body.marketplace-mode .ghost-btn:hover {
+  background: #f3f6fb;
+}
+
+body.marketplace-mode .topbar .button-link {
+  background: #3665f3;
+  color: #ffffff;
+}
+
+body.marketplace-mode .topbar .button-link:hover {
+  background: #284cc4;
+}
+
+body.marketplace-mode .card {
+  border-radius: 12px;
+  box-shadow: none;
+  border-color: #dee4ee;
+}
+
+.marketplace-hub {
+  margin: 0.85rem 0 1rem;
+  background: #ffffff;
+  border: 1px solid #dee4ee;
+  border-radius: 12px;
+  padding: 0.9rem;
+}
+
+.marketplace-util-bar {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #eef2f8;
+  padding-bottom: 0.6rem;
+}
+
+.marketplace-util-bar p {
+  margin: 0;
+}
+
+.marketplace-util-links {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.marketplace-util-links a {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.marketplace-util-links a:hover {
+  text-decoration: underline;
+}
+
+.marketplace-global-search {
+  margin-top: 0.7rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 200px auto;
+  gap: 0.55rem;
+}
+
+.marketplace-search-input-wrap input {
+  border: 2px solid #111827;
+  border-radius: 999px;
+  padding: 0.7rem 0.95rem;
+}
+
+.marketplace-search-category-wrap select {
+  border: 1px solid #cfd8e6;
+  border-radius: 999px;
+  padding: 0.69rem 0.75rem;
+  background: #ffffff;
+}
+
+.marketplace-search-btn {
+  min-width: 128px;
+  border-radius: 999px;
+  background: #3665f3;
+}
+
+.marketplace-search-btn:hover {
+  background: #284cc4;
+}
+
+.marketplace-quick-nav {
+  margin-top: 0.7rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.marketplace-quick-nav a {
+  display: inline-block;
+  text-decoration: none;
+  color: #344153;
+  border: 1px solid #dce3ef;
+  border-radius: 999px;
+  padding: 0.3rem 0.64rem;
+  font-size: 0.81rem;
+  font-weight: 600;
+  background: #ffffff;
+}
+
+.marketplace-quick-nav a.active {
+  color: #ffffff;
+  background: #3665f3;
+  border-color: #3665f3;
+}
+
+.marketplace-ebay-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.marketplace-manage-layout {
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+}
+
+.marketplace-filter-sidebar {
+  position: sticky;
+  top: 78px;
+}
+
+.marketplace-filter-sidebar h3 {
+  margin-top: 0.2rem;
+}
+
+.marketplace-filter-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.marketplace-category-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.marketplace-category-list li + li {
+  margin-top: 0.3rem;
+}
+
+.marketplace-category-list a {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  text-decoration: none;
+  color: #1f2937;
+  border: 1px solid #e2e8f3;
+  border-radius: 8px;
+  padding: 0.42rem 0.5rem;
+  font-size: 0.86rem;
+}
+
+.marketplace-category-list a.active {
+  border-color: #9db8ff;
+  background: #eff4ff;
+  color: #1e3a8a;
+}
+
+.marketplace-results-panel {
+  min-width: 0;
+}
+
+.marketplace-results-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.marketplace-results-meta h1 {
+  margin: 0;
+  font-size: clamp(1.3rem, 3vw, 1.8rem);
+}
+
+.marketplace-category-strip-card {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.marketplace-category-strip {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(100px, 132px);
+  gap: 0.55rem;
+  overflow-x: auto;
+}
+
+.marketplace-strip-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  text-decoration: none;
+  color: #1f2937;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.marketplace-strip-item img {
+  width: 100%;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #dce5f5;
+}
+
+.marketplace-strip-item.active img {
+  border-color: #7f9ef7;
+}
+
+.marketplace-result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.market-result-card {
+  background: #ffffff;
+  border: 1px solid #dbe3f1;
+  border-radius: 12px;
+  padding: 0.7rem;
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr) 160px;
+  gap: 0.8rem;
+}
+
+.market-result-media img {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #e3eaf7;
+}
+
+.market-result-main h3 {
+  margin: 0 0 0.3rem;
+}
+
+.market-result-main h3 a {
+  color: #111827;
+  text-decoration: none;
+}
+
+.market-result-main h3 a:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.market-result-main p {
+  margin: 0.22rem 0;
+}
+
+.market-result-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.marketplace-page-intro h1 {
+  margin-top: 0.1rem;
+  margin-bottom: 0.35rem;
+}
+
+.marketplace-sticky-card {
+  position: sticky;
+  top: 78px;
+  align-self: start;
+}
+
+.marketplace-sticky-card .marketplace-actions {
+  margin-top: 0.7rem;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.marketplace-detail-shell .market-detail-image {
+  border: 1px solid #dce5f5;
+}
+
 .marketplace-actions {
   display: flex;
   justify-content: space-between;
@@ -1128,6 +1443,24 @@ hr {
     grid-template-columns: 1fr;
   }
 
+  .marketplace-ebay-layout,
+  .marketplace-manage-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .marketplace-filter-sidebar,
+  .marketplace-sticky-card {
+    position: static;
+  }
+
+  .market-result-card {
+    grid-template-columns: 1fr;
+  }
+
+  .market-result-side {
+    align-items: flex-start;
+  }
+
   .room-update-form {
     min-width: 0;
     grid-template-columns: 1fr;
@@ -1175,5 +1508,17 @@ hr {
 
   .marketplace-category-grid {
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  }
+
+  .marketplace-global-search {
+    grid-template-columns: 1fr;
+  }
+
+  .marketplace-search-btn {
+    width: 100%;
+  }
+
+  .marketplace-util-bar {
+    flex-direction: column;
   }
 }

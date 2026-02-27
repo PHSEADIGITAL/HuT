@@ -1,96 +1,92 @@
 <%- include("partials/header", { title: "Create Marketplace Listing" }) %>
+<%- include("partials/marketplace-masthead", {
+  categories,
+  searchQuery: "",
+  searchCategory: ""
+}) %>
 
-<section class="hero small">
+<section class="card marketplace-page-intro">
   <h1>Create listing</h1>
-  <p>Upload second-hand items for Bonny Island buyers. Base limit is 4 listings per month.</p>
+  <p>Reach buyers faster with an eBay-style listing page built for Bonny Island.</p>
 </section>
 
-<section class="stats-grid">
-  <article class="card">
-    <h3>Listings used this month</h3>
+<section class="marketplace-ebay-layout marketplace-manage-layout">
+  <aside class="card marketplace-sticky-card">
+    <h3>Account snapshot</h3>
+    <p class="muted tiny">Listings used this month</p>
     <p class="metric"><%= limitState.used %> / <%= limitState.includedLimit %></p>
-  </article>
-  <article class="card">
-    <h3>Remaining</h3>
-    <p class="metric"><%= limitState.remaining %></p>
-  </article>
-  <article class="card">
-    <h3>Wallet balance</h3>
-    <p class="metric"><%= formatNaira(walletBalance || 0) %></p>
-  </article>
-</section>
+    <p class="muted tiny">Remaining: <strong><%= limitState.remaining %></strong></p>
+    <p class="muted tiny">Wallet balance: <strong><%= formatNaira(walletBalance || 0) %></strong></p>
 
-<section class="card">
-  <h3>Listing plans</h3>
-  <p class="muted">Upgrade if you want to post more items this month.</p>
-  <% if (activePlanSubscriptions.length) { %>
-    <p class="muted tiny">
-      Active plans this month:
-      <%= activePlanSubscriptions.map((item) => item.planName).join(", ") %>
-    </p>
-  <% } %>
-  <div class="marketplace-plan-grid">
-    <% marketplacePlans.forEach((plan) => { %>
-      <article class="card">
-        <h4><%= plan.name %></h4>
-        <p class="market-price"><%= formatNaira(plan.amount) %></p>
-        <p class="muted tiny"><%= plan.description %></p>
-        <p class="muted tiny">Adds <%= plan.extraListings %> listings/month</p>
-        <form method="POST" action="/marketplace/plans/purchase">
-          <input type="hidden" name="planId" value="<%= plan.id %>" />
-          <button type="submit" class="ghost-btn">Buy with wallet</button>
-        </form>
-      </article>
-    <% }) %>
-  </div>
-</section>
+    <hr />
 
-<section class="card">
-  <% if (!limitState.allowed) { %>
-    <p class="danger">You have reached your monthly listing limit. Try again next month.</p>
-  <% } else { %>
-    <form class="grid-form" method="POST" action="/marketplace/listings" enctype="multipart/form-data">
-      <div class="full">
-        <label for="title">Item title</label>
-        <input id="title" name="title" required />
-      </div>
-      <div class="full">
-        <label for="description">Description</label>
-        <textarea id="description" name="description" rows="4" required></textarea>
-      </div>
-      <div>
-        <label for="category">Category</label>
-        <select id="category" name="category" required>
-          <% categories.forEach((category) => { %>
-            <option value="<%= category %>"><%= category %></option>
-          <% }) %>
-        </select>
-      </div>
-      <div>
-        <label for="condition">Condition</label>
-        <select id="condition" name="condition" required>
-          <% conditions.forEach((item) => { %>
-            <option value="<%= item %>"><%= item %></option>
-          <% }) %>
-        </select>
-      </div>
-      <div>
-        <label for="price">Price (NGN)</label>
-        <input id="price" name="price" type="number" min="1" required />
-      </div>
-      <div class="full">
-        <label for="images">Upload photos (up to 4)</label>
-        <input id="images" name="images" type="file" accept="image/*" multiple capture="environment" />
-      </div>
-      <div class="full">
-        <label for="imageUrls">Optional external image URLs (comma separated)</label>
-        <input id="imageUrls" name="imageUrls" placeholder="https://...jpg, https://...jpg" />
-      </div>
-      <div class="full">
-        <button type="submit">Publish listing</button>
-      </div>
-    </form>
-  <% } %>
+    <h3>Listing plans</h3>
+    <% if (activePlanSubscriptions.length) { %>
+      <p class="muted tiny">Active: <%= activePlanSubscriptions.map((item) => item.planName).join(", ") %></p>
+    <% } %>
+    <div class="marketplace-plan-grid">
+      <% marketplacePlans.forEach((plan) => { %>
+        <article class="card">
+          <h4><%= plan.name %></h4>
+          <p class="market-price"><%= formatNaira(plan.amount) %></p>
+          <p class="muted tiny"><%= plan.description %></p>
+          <p class="muted tiny">Adds <%= plan.extraListings %> listings/month</p>
+          <form method="POST" action="/marketplace/plans/purchase">
+            <input type="hidden" name="planId" value="<%= plan.id %>" />
+            <button type="submit" class="ghost-btn">Buy with wallet</button>
+          </form>
+        </article>
+      <% }) %>
+    </div>
+  </aside>
+
+  <section class="card">
+    <% if (!limitState.allowed) { %>
+      <p class="danger">You have reached your monthly listing limit. Try again next month.</p>
+    <% } else { %>
+      <form class="grid-form" method="POST" action="/marketplace/listings" enctype="multipart/form-data">
+        <div class="full">
+          <label for="title">Item title</label>
+          <input id="title" name="title" required />
+        </div>
+        <div class="full">
+          <label for="description">Description</label>
+          <textarea id="description" name="description" rows="4" required></textarea>
+        </div>
+        <div>
+          <label for="category">Category</label>
+          <select id="category" name="category" required>
+            <% categories.forEach((category) => { %>
+              <option value="<%= category %>"><%= category %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div>
+          <label for="condition">Condition</label>
+          <select id="condition" name="condition" required>
+            <% conditions.forEach((item) => { %>
+              <option value="<%= item %>"><%= item %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div>
+          <label for="price">Price (NGN)</label>
+          <input id="price" name="price" type="number" min="1" required />
+        </div>
+        <div class="full">
+          <label for="images">Upload photos (up to 4)</label>
+          <input id="images" name="images" type="file" accept="image/*" multiple capture="environment" />
+        </div>
+        <div class="full">
+          <label for="imageUrls">Optional external image URLs (comma separated)</label>
+          <input id="imageUrls" name="imageUrls" placeholder="https://...jpg, https://...jpg" />
+        </div>
+        <div class="full">
+          <button type="submit">List item</button>
+        </div>
+      </form>
+    <% } %>
+  </section>
 </section>
 
 <%- include("partials/footer", { platform }) %>

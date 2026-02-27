@@ -1,0 +1,67 @@
+<%
+  const queryValue = typeof searchQuery === "string" ? searchQuery : "";
+  const selectedCategory = typeof searchCategory === "string" ? searchCategory : "";
+  const categoryOptions = Array.isArray(categories) ? categories : [];
+  const quickCategories = categoryOptions.slice(0, 10);
+%>
+
+<section class="marketplace-hub">
+  <div class="marketplace-util-bar">
+    <p class="muted tiny">
+      <% if (currentUser) { %>
+        Welcome back, <strong><%= currentUser.name %></strong>
+      <% } else { %>
+        Welcome to Hut Marketplace
+      <% } %>
+    </p>
+    <div class="marketplace-util-links tiny">
+      <a href="/marketplace">Home</a>
+      <% if (currentUser) { %>
+        <a href="/marketplace/my-listings">My Listings</a>
+        <a href="/marketplace/new">Sell Item</a>
+        <a href="/wallet">Wallet</a>
+      <% } else { %>
+        <a href="/auth/login?next=%2Fmarketplace">Sign in</a>
+        <a href="/auth/register?next=%2Fmarketplace">Register</a>
+      <% } %>
+    </div>
+  </div>
+
+  <form class="marketplace-global-search" method="GET" action="/marketplace">
+    <div class="marketplace-search-input-wrap">
+      <input
+        type="text"
+        name="q"
+        value="<%= queryValue %>"
+        placeholder="Search for anything"
+        aria-label="Search marketplace items"
+      />
+    </div>
+    <div class="marketplace-search-category-wrap">
+      <select name="category" aria-label="Select category">
+        <option value="">All Categories</option>
+        <% categoryOptions.forEach((categoryName) => { %>
+          <option
+            value="<%= categoryName %>"
+            <%= selectedCategory === categoryName ? "selected" : "" %>
+          >
+            <%= categoryName %>
+          </option>
+        <% }) %>
+      </select>
+    </div>
+    <button type="submit" class="marketplace-search-btn">Search</button>
+  </form>
+
+  <nav class="marketplace-quick-nav">
+    <a class="<%= !selectedCategory ? "active" : "" %>" href="/marketplace">All</a>
+    <% quickCategories.forEach((categoryName) => { %>
+      <a
+        class="<%= selectedCategory === categoryName ? "active" : "" %>"
+        href="/marketplace?category=<%= encodeURIComponent(categoryName) %>"
+      >
+        <%= categoryName %>
+      </a>
+    <% }) %>
+  </nav>
+</section>

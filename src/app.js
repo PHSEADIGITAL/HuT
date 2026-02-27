@@ -2109,6 +2109,7 @@ function createApp() {
       }));
     response.render("marketplace-my-listings", {
       listings,
+      categories: marketplaceCategories,
       limitState,
       marketplacePlans,
       activePlanSubscriptions,
@@ -2191,6 +2192,7 @@ function createApp() {
 
     response.render("marketplace-detail", {
       listing: enrichedListing,
+      categories: marketplaceCategories,
       seller,
       canViewContact,
       canUnlock,
