@@ -36,6 +36,31 @@
       <input id="pickupFee" name="pickupFee" type="number" min="0" value="7000" />
     </div>
     <div class="full">
+      <h3>Room inventory setup</h3>
+      <p class="muted tiny">
+        Set room count by category (Standard, Deluxe, Executive Suites). Room pricing can be adjusted later by hotel admins.
+      </p>
+    </div>
+    <div>
+      <label for="standardRoomUnits">Standard rooms</label>
+      <input id="standardRoomUnits" name="standardRoomUnits" type="number" min="0" value="8" required />
+    </div>
+    <div>
+      <label for="deluxeRoomUnits">Deluxe rooms</label>
+      <input id="deluxeRoomUnits" name="deluxeRoomUnits" type="number" min="0" value="4" required />
+    </div>
+    <div>
+      <label for="executiveSuiteRoomUnits">Executive Suites</label>
+      <input
+        id="executiveSuiteRoomUnits"
+        name="executiveSuiteRoomUnits"
+        type="number"
+        min="0"
+        value="2"
+        required
+      />
+    </div>
+    <div class="full">
       <label for="coverImage">Cover image URL (optional)</label>
       <input
         id="coverImage"

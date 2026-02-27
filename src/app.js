@@ -46,6 +46,18 @@ function toNumber(value, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function toInteger(value, fallback = 0) {
+  const parsed = Math.floor(toNumber(value, fallback));
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function toSlug(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function isoDateOffset(daysFromToday) {
   const date = new Date();
   date.setUTCHours(0, 0, 0, 0);
@@ -94,6 +106,27 @@ const roomFallbackImages = [
   "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1400&q=80"
 ];
 
+const minimumHotelCommissionRate = 0.05;
+const maximumHotelCommissionRate = 0.3;
+const defaultHotelCommissionRate = 0.12;
+const onboardingRoomCategoryConfig = [
+  {
+    fieldName: "standardRoomUnits",
+    category: "Standard",
+    defaultPricePerNight: 55000
+  },
+  {
+    fieldName: "deluxeRoomUnits",
+    category: "Deluxe",
+    defaultPricePerNight: 85000
+  },
+  {
+    fieldName: "executiveSuiteRoomUnits",
+    category: "Executive Suites",
+    defaultPricePerNight: 135000
+  }
+];
+
 function numericSeed(value) {
   const text = String(value || "");
   let seed = 0;
@@ -121,6 +154,19 @@ function normalizeImageArray(value) {
   }
 
   return [];
+}
+
+function normalizeCommissionRatePercentInput(value, fallbackRate = defaultHotelCommissionRate) {
+  const fallbackPercent = Math.round(fallbackRate * 10000) / 100;
+  const parsedPercent = toNumber(value, fallbackPercent);
+  const normalizedRate = parsedPercent / 100;
+  if (!Number.isFinite(normalizedRate)) {
+    return fallbackRate;
+  }
+  return Math.min(
+    maximumHotelCommissionRate,
+    Math.max(minimumHotelCommissionRate, normalizedRate)
+  );
 }
 
 function withHotelMedia(hotel) {
@@ -262,6 +308,34 @@ const marketplaceCategories = [
   "Other"
 ];
 const marketplaceConditions = ["Used", "Like New", "Refurbished"];
+const marketplaceCategoryThumbnailMap = {
+  "All categories":
+    "https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=900&q=80",
+  Electronics:
+    "https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=900&q=80",
+  Furniture:
+    "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=900&q=80",
+  Fashion:
+    "https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=900&q=80",
+  Gaming:
+    "https://images.unsplash.com/photo-1493711662062-fa541adb3fc8?auto=format&fit=crop&w=900&q=80",
+  "Mobile Phones":
+    "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=80",
+  Computers:
+    "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=900&q=80",
+  Appliances:
+    "https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=900&q=80",
+  "Home & Kitchen":
+    "https://images.unsplash.com/photo-1556911220-bff31c812dba?auto=format&fit=crop&w=900&q=80",
+  Kids:
+    "https://images.unsplash.com/photo-1472162314594-ccd2f46f9e60?auto=format&fit=crop&w=900&q=80",
+  Sports:
+    "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=900&q=80",
+  Vehicles:
+    "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=900&q=80",
+  Other:
+    "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=80"
+};
 const marketplacePlans = [
   {
     id: "basic",
@@ -307,6 +381,37 @@ const marketplaceUpload = multer({
 function toMonthKey(dateValue = new Date()) {
   const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function buildMarketplaceFilterHref({
+  q = "",
+  category = "",
+  condition = "",
+  minPrice = 0,
+  maxPrice = null,
+  sort = "newest"
+}) {
+  const params = new URLSearchParams();
+  if (q) {
+    params.set("q", q);
+  }
+  if (category) {
+    params.set("category", category);
+  }
+  if (condition) {
+    params.set("condition", condition);
+  }
+  if (Number.isFinite(minPrice) && minPrice > 0) {
+    params.set("minPrice", String(minPrice));
+  }
+  if (Number.isFinite(maxPrice) && maxPrice > 0) {
+    params.set("maxPrice", String(maxPrice));
+  }
+  if (sort && sort !== "newest") {
+    params.set("sort", sort);
+  }
+  const query = params.toString();
+  return query ? `/marketplace?${query}` : "/marketplace";
 }
 
 function maskPhone(phone) {
@@ -489,6 +594,36 @@ function canViewBooking(user, booking) {
 
 function customerOwnsBooking(user, booking) {
   return user && user.role === "customer" && user.id === booking.customerUserId;
+}
+
+function getMaxConcurrentBookedUnits(data, roomId) {
+  const events = [];
+  for (const booking of data.bookings) {
+    if (
+      booking.roomId !== roomId ||
+      (booking.status !== "confirmed" && booking.status !== "checked_in")
+    ) {
+      continue;
+    }
+
+    const checkInAt = new Date(`${booking.checkInDate}T00:00:00.000Z`).getTime();
+    const checkOutAt = new Date(`${booking.checkOutDate}T00:00:00.000Z`).getTime();
+    if (!Number.isFinite(checkInAt) || !Number.isFinite(checkOutAt) || checkOutAt <= checkInAt) {
+      continue;
+    }
+
+    events.push({ at: checkInAt, delta: 1 });
+    events.push({ at: checkOutAt, delta: -1 });
+  }
+
+  events.sort((a, b) => a.at - b.at || a.delta - b.delta);
+  let concurrent = 0;
+  let peak = 0;
+  for (const event of events) {
+    concurrent += event.delta;
+    peak = Math.max(peak, concurrent);
+  }
+  return peak;
 }
 
 function requireAuth(request, response, next) {
@@ -1641,9 +1776,50 @@ function createApp() {
       ? sortInput
       : "newest";
 
-    let listings = snapshot.marketplaceListings
+    const activeListings = snapshot.marketplaceListings
       .filter((item) => item.status === "active")
       .map((item) => enrichMarketplaceListing(snapshot, item));
+    const categoryCounts = marketplaceCategories.reduce((accumulator, categoryName) => {
+      accumulator[categoryName] = 0;
+      return accumulator;
+    }, {});
+    for (const listing of activeListings) {
+      if (Object.prototype.hasOwnProperty.call(categoryCounts, listing.category)) {
+        categoryCounts[listing.category] += 1;
+      }
+    }
+    const categoryCards = [
+      {
+        name: "All categories",
+        imageUrl: marketplaceCategoryThumbnailMap["All categories"] || marketplaceFallbackImage,
+        listingCount: activeListings.length,
+        active: !category,
+        href: buildMarketplaceFilterHref({
+          q: query,
+          category: "",
+          condition,
+          minPrice,
+          maxPrice,
+          sort
+        })
+      },
+      ...marketplaceCategories.map((categoryName) => ({
+        name: categoryName,
+        imageUrl: marketplaceCategoryThumbnailMap[categoryName] || marketplaceFallbackImage,
+        listingCount: categoryCounts[categoryName] || 0,
+        active: category === categoryName,
+        href: buildMarketplaceFilterHref({
+          q: query,
+          category: categoryName,
+          condition,
+          minPrice,
+          maxPrice,
+          sort
+        })
+      }))
+    ];
+
+    let listings = [...activeListings];
 
     const searchableQuery = query.toLowerCase();
     if (searchableQuery) {
@@ -1700,6 +1876,7 @@ function createApp() {
     response.render("marketplace-index", {
       listings,
       categories: marketplaceCategories,
+      categoryCards,
       conditions: marketplaceConditions,
       filters: {
         q: query,
@@ -2165,6 +2342,7 @@ function createApp() {
         hotelName: payment.hotelId ? (hotelMap.get(payment.hotelId)?.name || "Unknown hotel") : "-",
         userName: payment.userId ? (userMap.get(payment.userId)?.name || "Unknown user") : "-"
       }));
+      const hotels = sortHotelsForMarketplace(snapshot.hotels);
 
       response.render("admin-owner-dashboard", {
         summary: {
@@ -2179,6 +2357,7 @@ function createApp() {
           netPlatformRevenue,
           walletLiability
         },
+        hotels,
         paymentRows,
         platform: snapshot.platform
       });
@@ -2247,24 +2426,38 @@ function createApp() {
         coverImage,
         galleryImages,
         premiumListingActive,
+        standardRoomUnits,
+        deluxeRoomUnits,
+        executiveSuiteRoomUnits,
         adminName,
         adminEmail,
         adminPassword
       } = request.body;
 
       const result = await withWriteLock(async (data) => {
+        const hotelSlug = toSlug(name);
+        const roomUnitInputs = {
+          standardRoomUnits,
+          deluxeRoomUnits,
+          executiveSuiteRoomUnits
+        };
+        const defaultCommissionRate =
+          Number.isFinite(data.platform.defaultCommissionRate) &&
+          data.platform.defaultCommissionRate > 0
+            ? data.platform.defaultCommissionRate
+            : defaultHotelCommissionRate;
         const hotel = {
-          id: `hotel-${String(name || "")
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/^-+|-+$/g, "")}-${Date.now()}`,
+          id: `hotel-${hotelSlug}-${Date.now()}`,
           name: String(name || "").trim(),
           description: String(description || "").trim(),
           location: String(location || "").trim(),
           bankName: String(bankName || "").trim(),
           bankAccount: String(bankAccount || "").trim(),
           cancellationPolicy: String(cancellationPolicy || "flexible"),
-          commissionRate: Math.max(0.05, toNumber(commissionRate, 12) / 100),
+          commissionRate: normalizeCommissionRatePercentInput(
+            commissionRate,
+            defaultCommissionRate
+          ),
           premiumListingActive: premiumListingActive === "on",
           premiumListingExpiresAt:
             premiumListingActive === "on"
@@ -2279,10 +2472,34 @@ function createApp() {
         if (!hotel.name || !hotel.bankAccount || !hotel.bankName) {
           return { error: "Hotel name and bank details are required." };
         }
+        if (!hotelSlug) {
+          return { error: "Hotel name must include letters or numbers." };
+        }
 
         const normalizedAdminEmail = String(adminEmail || "").trim().toLowerCase();
         const normalizedAdminPassword = String(adminPassword || "");
         const normalizedAdminName = String(adminName || "").trim();
+        let roomInventory = onboardingRoomCategoryConfig
+          .map((config) => ({
+            ...config,
+            totalUnits: Math.max(0, toInteger(roomUnitInputs[config.fieldName], 0))
+          }))
+          .filter((config) => config.totalUnits > 0);
+        const onboardingFieldsSubmitted = onboardingRoomCategoryConfig.some(
+          (config) =>
+            roomUnitInputs[config.fieldName] !== undefined &&
+            String(roomUnitInputs[config.fieldName]).trim() !== ""
+        );
+
+        if (!roomInventory.length && onboardingFieldsSubmitted) {
+          return {
+            error:
+              "Select at least one room category with room count greater than zero."
+          };
+        }
+        if (!roomInventory.length) {
+          roomInventory = [{ ...onboardingRoomCategoryConfig[0], totalUnits: 1 }];
+        }
 
         if (normalizedAdminEmail || normalizedAdminPassword || normalizedAdminName) {
           if (!normalizedAdminEmail || !normalizedAdminPassword || !normalizedAdminName) {
@@ -2313,6 +2530,16 @@ function createApp() {
         }
 
         data.hotels.push(hotel);
+        for (const roomConfig of roomInventory) {
+          data.rooms.push({
+            id: `room-${hotel.id}-${toSlug(roomConfig.category)}`,
+            hotelId: hotel.id,
+            category: roomConfig.category,
+            pricePerNight: roomConfig.defaultPricePerNight,
+            totalUnits: roomConfig.totalUnits,
+            image: pickFallbackImage(roomFallbackImages, `${hotel.id}-${roomConfig.category}`)
+          });
+        }
 
         if (hotel.premiumListingActive) {
           data.premiumSubscriptions.push({
@@ -2357,6 +2584,97 @@ function createApp() {
       }
 
       response.redirect(`/admin/hotels/${result.hotelId}/dashboard`);
+    }
+  );
+
+  app.post(
+    "/admin/hotels/:hotelId/commission",
+    requireRoles(["platform_admin"]),
+    requireHotelAccess,
+    async (request, response) => {
+      const hotelId = request.params.hotelId;
+      const returnTo = safeNextPath(
+        request.body.returnTo || `/admin/hotels/${hotelId}/dashboard`
+      );
+      const requestedPercent = toNumber(request.body.commissionRate, NaN);
+
+      if (!Number.isFinite(requestedPercent) || requestedPercent <= 0) {
+        setFlash(request, "error", "Enter a valid commission percentage.");
+        response.redirect(returnTo);
+        return;
+      }
+
+      const result = await withWriteLock(async (data) => {
+        const hotel = data.hotels.find((item) => item.id === hotelId);
+        if (!hotel) {
+          return { error: "Hotel not found." };
+        }
+
+        hotel.commissionRate = normalizeCommissionRatePercentInput(
+          requestedPercent,
+          Number.isFinite(hotel.commissionRate) ? hotel.commissionRate : defaultHotelCommissionRate
+        );
+        return { commissionRate: hotel.commissionRate };
+      });
+
+      if (result.error) {
+        setFlash(request, "error", result.error);
+      } else {
+        setFlash(
+          request,
+          "success",
+          `Commission updated to ${formatPercent(result.commissionRate)}.`
+        );
+      }
+      response.redirect(returnTo);
+    }
+  );
+
+  app.post(
+    "/admin/hotels/:hotelId/rooms/:roomId",
+    requireRoles(["hotel_admin", "platform_admin"]),
+    requireHotelAccess,
+    async (request, response) => {
+      const hotelId = request.params.hotelId;
+      const roomId = request.params.roomId;
+      const pricePerNight = Math.round(toNumber(request.body.pricePerNight, NaN));
+      const totalUnits = Math.floor(toNumber(request.body.totalUnits, NaN));
+
+      if (!Number.isFinite(pricePerNight) || pricePerNight < 1000) {
+        setFlash(request, "error", "Room price must be at least NGN 1,000.");
+        response.redirect(`/admin/hotels/${hotelId}/dashboard`);
+        return;
+      }
+      if (!Number.isFinite(totalUnits) || totalUnits < 1) {
+        setFlash(request, "error", "Total room units must be at least 1.");
+        response.redirect(`/admin/hotels/${hotelId}/dashboard`);
+        return;
+      }
+
+      const result = await withWriteLock(async (data) => {
+        const room = data.rooms.find((item) => item.id === roomId && item.hotelId === hotelId);
+        if (!room) {
+          return { error: "Room category not found for this hotel." };
+        }
+
+        const minimumUnitsForExistingBookings = getMaxConcurrentBookedUnits(data, room.id);
+        if (totalUnits < minimumUnitsForExistingBookings) {
+          return {
+            error: `Cannot reduce units below ${minimumUnitsForExistingBookings} due to existing confirmed bookings.`
+          };
+        }
+
+        room.pricePerNight = pricePerNight;
+        room.totalUnits = totalUnits;
+        return { room };
+      });
+
+      if (result.error) {
+        setFlash(request, "error", result.error);
+      } else {
+        setFlash(request, "success", "Room pricing and inventory updated.");
+      }
+      response.redirect(`/admin/hotels/${hotelId}/dashboard`);
     }
   );
 
@@ -2451,7 +2769,12 @@ function createApp() {
       const payments = snapshot.payments
         .filter((payment) => payment.hotelId === hotel.id)
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      const availability = hotelAvailability(snapshot, hotel.id, checkInDate, checkOutDate);
+      const availabilityRows = hotelAvailability(snapshot, hotel.id, checkInDate, checkOutDate);
+      const roomById = new Map(rooms.map((room) => [room.id, room]));
+      const availability = availabilityRows.map((entry) => ({
+        ...entry,
+        pricePerNight: roomById.get(entry.roomId)?.pricePerNight || 0
+      }));
       const pricingInsights = getSmartPricingInsights({
         data: snapshot,
         hotelId: hotel.id
