@@ -59,7 +59,9 @@
   <p class="muted">
     You can cancel if needed according to the policy below.
   </p>
-  <a class="button-link" href="/bookings/<%= booking.id %>/manage">Manage / Cancel booking</a>
+  <% if (currentUser && currentUser.role === "customer" && currentUser.id === booking.customerUserId) { %>
+    <a class="button-link" href="/bookings/<%= booking.id %>/manage">Manage / Cancel booking</a>
+  <% } %>
 </section>
 
 <section class="card ideas">

@@ -144,6 +144,7 @@
           <th>Date</th>
           <th>Type</th>
           <th>Reference</th>
+          <th>Provider</th>
           <th>Gross</th>
           <th>Hotel Payout</th>
           <th>Platform Earning</th>
@@ -152,7 +153,7 @@
       <tbody>
         <% if (!payments.length) { %>
           <tr>
-            <td colspan="6" class="muted">No payment records yet.</td>
+            <td colspan="7" class="muted">No payment records yet.</td>
           </tr>
         <% } %>
         <% payments.forEach((payment) => { %>
@@ -160,6 +161,7 @@
             <td><%= payment.createdAt %></td>
             <td><%= payment.transactionType %></td>
             <td><%= payment.transactionRef %></td>
+            <td><%= payment.paymentProvider || "-" %></td>
             <td><%= formatNaira(payment.grossAmount) %></td>
             <td><%= formatNaira(payment.hotelPayout) %></td>
             <td><%= formatNaira(payment.platformEarning) %></td>

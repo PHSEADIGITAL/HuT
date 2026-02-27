@@ -4,6 +4,30 @@ const { dbFilePath } = require("../config");
 let inMemoryCache = null;
 let writeQueue = Promise.resolve();
 
+function ensureDataShape(data) {
+  if (!Array.isArray(data.bookings)) {
+    data.bookings = [];
+  }
+  if (!Array.isArray(data.payments)) {
+    data.payments = [];
+  }
+  if (!Array.isArray(data.notifications)) {
+    data.notifications = [];
+  }
+  if (!Array.isArray(data.premiumSubscriptions)) {
+    data.premiumSubscriptions = [];
+  }
+  if (!Array.isArray(data.fraudEvents)) {
+    data.fraudEvents = [];
+  }
+  if (!Array.isArray(data.paymentSessions)) {
+    data.paymentSessions = [];
+  }
+  if (!Array.isArray(data.users)) {
+    data.users = [];
+  }
+}
+
 async function loadData() {
   if (inMemoryCache) {
     return inMemoryCache;
@@ -11,6 +35,7 @@ async function loadData() {
 
   const raw = await fs.readFile(dbFilePath, "utf8");
   inMemoryCache = JSON.parse(raw);
+  ensureDataShape(inMemoryCache);
   return inMemoryCache;
 }
 
@@ -31,6 +56,7 @@ async function withWriteLock(mutator) {
   const run = writeQueue.then(async () => {
     const data = await loadData();
     const result = await mutator(data);
+    ensureDataShape(data);
     await saveData(data);
     return result;
   });
@@ -41,5 +67,9 @@ async function withWriteLock(mutator) {
 
 module.exports = {
   getSnapshot,
-  withWriteLock
+  withWriteLock,
+  resetCache: () => {
+    inMemoryCache = null;
+    writeQueue = Promise.resolve();
+  }
 };

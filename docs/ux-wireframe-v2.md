@@ -22,12 +22,12 @@ Hut! is a booking web app focused on Bonny Island hotels:
 
 ```text
 Customer Side
-Home (Hotels) -> Hotel Details -> Booking + Payment -> Success + Acknowledgement
+Auth (Register/Login) -> Home (Hotels) -> Hotel Details -> Booking + Payment -> Success + Acknowledgement
                                              \-> Manage Booking -> Cancel/Refund
 
 Hotel Admin Side
-Admin Overview -> Hotel Dashboard
-               -> Onboard Hotel
+Admin Login -> Admin Overview -> Hotel Dashboard
+                         \-> Onboard Hotel (Platform Admin)
 
 Platform Rules
 Commission Model
@@ -84,6 +84,8 @@ Real-time Inventory Sync
 | [Special Request]                                                                 |
 | Note: total = room + service charge (% commission model)                         |
 | [Book and Pay Online]                                                            |
++----------------------------------------------------------------------------------+
+| If not logged in as customer: "Sign in to book"                                  |
 +----------------------------------------------------------------------------------+
 | Cancellation summary                                                             |
 | - 100% 48+ hrs, 50% 24-48 hrs, 0% <24 hrs, pickup refundable only 24+ hrs       |

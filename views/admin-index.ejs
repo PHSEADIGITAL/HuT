@@ -6,6 +6,11 @@
 </section>
 
 <section class="cards">
+  <% if (!hotels.length) { %>
+    <article class="card">
+      <p class="muted">No hotels are assigned to this admin account yet.</p>
+    </article>
+  <% } %>
   <% hotels.forEach((hotel) => { %>
     <article class="card hotel-card">
       <div class="card-head">

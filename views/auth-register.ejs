@@ -1,0 +1,53 @@
+<%- include("partials/header", { title: "Create account" }) %>
+
+<section class="hero small">
+  <h1>Create your Hut customer account</h1>
+  <p>Sign up once to book, pay, and manage cancellations securely.</p>
+</section>
+
+<section class="card auth-card">
+  <form class="grid-form" method="POST" action="/auth/register">
+    <input type="hidden" name="next" value="<%= next %>" />
+
+    <div>
+      <label for="name">Full name</label>
+      <input id="name" name="name" type="text" required />
+    </div>
+
+    <div>
+      <label for="phone">Phone</label>
+      <input id="phone" name="phone" type="tel" required />
+    </div>
+
+    <div class="full">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" required />
+    </div>
+
+    <div>
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" minlength="8" required />
+    </div>
+
+    <div>
+      <label for="confirmPassword">Confirm password</label>
+      <input
+        id="confirmPassword"
+        name="confirmPassword"
+        type="password"
+        minlength="8"
+        required
+      />
+    </div>
+
+    <div class="full">
+      <button type="submit">Create account</button>
+    </div>
+  </form>
+  <p class="muted">
+    Already have an account?
+    <a href="/auth/login?next=<%= encodeURIComponent(next) %>">Sign in</a>.
+  </p>
+</section>
+
+<%- include("partials/footer", { platform }) %>

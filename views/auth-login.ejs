@@ -1,0 +1,32 @@
+<%- include("partials/header", { title: "Sign in" }) %>
+
+<section class="hero small">
+  <h1>Sign in to Hut</h1>
+  <p>Customers can book/cancel; hotel admins can access hotel dashboards.</p>
+</section>
+
+<section class="card auth-card">
+  <form class="grid-form" method="POST" action="/auth/login">
+    <input type="hidden" name="next" value="<%= next %>" />
+
+    <div class="full">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" required />
+    </div>
+
+    <div class="full">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" required />
+    </div>
+
+    <div class="full">
+      <button type="submit">Sign in</button>
+    </div>
+  </form>
+  <p class="muted">
+    No account yet?
+    <a href="/auth/register?next=<%= encodeURIComponent(next) %>">Create one here</a>.
+  </p>
+</section>
+
+<%- include("partials/footer", { platform }) %>

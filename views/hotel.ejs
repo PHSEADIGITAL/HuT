@@ -64,96 +64,100 @@
 
 <section class="card">
   <h2>Book this hotel</h2>
-  <form class="grid-form" method="POST" action="/bookings">
-    <input type="hidden" name="hotelId" value="<%= hotel.id %>" />
+  <% if (!currentUser || currentUser.role !== "customer") { %>
+    <p class="muted">
+      You need a customer account to continue with booking and payment.
+    </p>
+    <a
+      class="button-link"
+      href="/auth/login?next=<%= encodeURIComponent(`/hotels/${hotel.id}?checkInDate=${checkInDate}&checkOutDate=${checkOutDate}`) %>"
+    >
+      Sign in to book
+    </a>
+  <% } else { %>
+    <form class="grid-form" method="POST" action="/bookings">
+      <input type="hidden" name="hotelId" value="<%= hotel.id %>" />
 
-    <div>
-      <label for="roomId">Room category</label>
-      <select id="roomId" name="roomId" required>
-        <% rooms.forEach((room) => { %>
-          <option value="<%= room.id %>">
-            <%= room.category %> - <%= formatNaira(room.pricePerNight) %>/night
-          </option>
-        <% }) %>
-      </select>
-    </div>
+      <div class="full card subtle">
+        <p>
+          Booking as <strong><%= currentUser.name %></strong> (<%= currentUser.email %>,
+          <%= currentUser.phone %>)
+        </p>
+      </div>
 
-    <div>
-      <label for="guests">Guests</label>
-      <input id="guests" name="guests" type="number" min="1" value="1" required />
-    </div>
+      <div>
+        <label for="roomId">Room category</label>
+        <select id="roomId" name="roomId" required>
+          <% rooms.forEach((room) => { %>
+            <option value="<%= room.id %>">
+              <%= room.category %> - <%= formatNaira(room.pricePerNight) %>/night
+            </option>
+          <% }) %>
+        </select>
+      </div>
 
-    <div>
-      <label for="checkInBook">Check-in</label>
-      <input
-        id="checkInBook"
-        name="checkInDate"
-        type="date"
-        value="<%= checkInDate %>"
-        required
-      />
-    </div>
+      <div>
+        <label for="guests">Guests</label>
+        <input id="guests" name="guests" type="number" min="1" value="1" required />
+      </div>
 
-    <div>
-      <label for="checkOutBook">Check-out</label>
-      <input
-        id="checkOutBook"
-        name="checkOutDate"
-        type="date"
-        value="<%= checkOutDate %>"
-        required
-      />
-    </div>
+      <div>
+        <label for="checkInBook">Check-in</label>
+        <input
+          id="checkInBook"
+          name="checkInDate"
+          type="date"
+          value="<%= checkInDate %>"
+          required
+        />
+      </div>
 
-    <div>
-      <label for="customerName">Full name</label>
-      <input id="customerName" name="customerName" type="text" required />
-    </div>
+      <div>
+        <label for="checkOutBook">Check-out</label>
+        <input
+          id="checkOutBook"
+          name="checkOutDate"
+          type="date"
+          value="<%= checkOutDate %>"
+          required
+        />
+      </div>
 
-    <div>
-      <label for="email">Email</label>
-      <input id="email" name="email" type="email" required />
-    </div>
+      <div>
+        <label for="emergencyContactName">Emergency contact name</label>
+        <input id="emergencyContactName" name="emergencyContactName" type="text" required />
+      </div>
 
-    <div>
-      <label for="phone">Phone</label>
-      <input id="phone" name="phone" type="tel" placeholder="+234..." required />
-    </div>
+      <div>
+        <label for="emergencyContactPhone">Emergency contact phone</label>
+        <input id="emergencyContactPhone" name="emergencyContactPhone" type="tel" required />
+      </div>
 
-    <div>
-      <label for="emergencyContactName">Emergency contact name</label>
-      <input id="emergencyContactName" name="emergencyContactName" type="text" required />
-    </div>
+      <div class="full">
+        <label class="checkbox">
+          <input type="checkbox" name="pickupRequested" />
+          Add pickup service (<%= formatNaira(hotel.pickupFee) %>) - refundable only if cancellation is 24+ hours before check-in.
+        </label>
+      </div>
 
-    <div>
-      <label for="emergencyContactPhone">Emergency contact phone</label>
-      <input id="emergencyContactPhone" name="emergencyContactPhone" type="tel" required />
-    </div>
+      <div class="full">
+        <label for="specialRequest">Special requests (optional)</label>
+        <textarea id="specialRequest" name="specialRequest" rows="3"></textarea>
+      </div>
 
-    <div class="full">
-      <label class="checkbox">
-        <input type="checkbox" name="pickupRequested" />
-        Add pickup service (<%= formatNaira(hotel.pickupFee) %>) - refundable only if cancellation is 24+ hours before check-in.
-      </label>
-    </div>
+      <div class="full card subtle">
+        <p>
+          <strong>Secure payment note:</strong> total includes room amount + service charge
+          (<%= formatPercent(hotel.commissionRate) %> commission model).
+        </p>
+        <p class="muted">Fraud protection is active to secure guests and hotels.</p>
+      </div>
 
-    <div class="full">
-      <label for="specialRequest">Special requests (optional)</label>
-      <textarea id="specialRequest" name="specialRequest" rows="3"></textarea>
-    </div>
-
-    <div class="full card subtle">
-      <p>
-        <strong>Secure payment note:</strong> total includes room amount + service charge
-        (<%= formatPercent(hotel.commissionRate) %> commission model).
-      </p>
-      <p class="muted">Fraud protection is active to secure guests and hotels.</p>
-    </div>
-
-    <div class="full">
-      <button type="submit">Book and Pay Online</button>
-    </div>
-  </form>
+      <div class="full">
+        <button type="submit">Book and Pay Online</button>
+      </div>
+    </form>
+  <% } %>
 </section>
 
 <section class="card ideas">

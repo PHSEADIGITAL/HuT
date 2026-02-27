@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node src/server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "smoke": "node --test test/smoke.test.js"
   },
   "keywords": [
     "hotel",
@@ -18,7 +19,11 @@
   "author": "Hut Platform",
   "license": "MIT",
   "dependencies": {
+    "dotenv": "^17.3.1",
     "ejs": "^3.1.10",
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "express-session": "^1.19.0",
+    "nodemailer": "^8.0.1",
+    "supertest": "^7.2.2"
   }
 }
