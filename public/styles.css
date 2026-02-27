@@ -154,6 +154,50 @@ body {
   grid-column: 1 / -1;
 }
 
+.inline-editor {
+  border: 1px solid #dbe6f8;
+  border-radius: 10px;
+  background: #f8fbff;
+  padding: 0.45rem 0.6rem;
+}
+
+.inline-editor summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: #1d4ed8;
+  list-style: none;
+}
+
+.inline-editor summary::-webkit-details-marker {
+  display: none;
+}
+
+.inline-editor summary::after {
+  content: "  +";
+  font-weight: 700;
+}
+
+.inline-editor[open] summary::after {
+  content: "  -";
+}
+
+.inline-editor > form {
+  margin-top: 0.6rem;
+}
+
+.option-check-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.45rem 0.6rem;
+}
+
+.option-check-item {
+  border: 1px solid #dbe6f8;
+  border-radius: 10px;
+  padding: 0.45rem 0.55rem;
+  background: #f9fbff;
+}
+
 .commission-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

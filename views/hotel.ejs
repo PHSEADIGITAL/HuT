@@ -8,6 +8,9 @@
   </p>
   <h1><%= hotel.name %></h1>
   <p class="muted"><%= "★".repeat(hotel.starRating) %> <%= hotel.propertyType %> • <%= hotel.location %></p>
+  <% if (hotel.address) { %>
+    <p class="muted tiny"><%= hotel.address %></p>
+  <% } %>
   <div class="result-meta muted">
     <span><%= hotel.distanceToCenterKm %> km from center</span>
     <span><%= hotel.reviewLabel %> • <%= hotel.reviewScore %> / 10 (<%= hotel.reviewCount %> reviews)</span>
@@ -29,7 +32,7 @@
   <div class="property-main-column">
     <article class="card">
       <h2>Property highlights</h2>
-      <p><%= hotel.description %></p>
+      <p><%= hotel.about || hotel.description %></p>
       <div class="chip-list">
         <% (hotel.amenities || []).forEach((item) => { %>
           <span class="chip"><%= item %></span>

@@ -76,23 +76,26 @@
             <td><%= hotel.location %></td>
             <td><%= formatPercent(hotel.commissionRate || platform.defaultCommissionRate) %></td>
             <td>
-              <form class="commission-form" method="POST" action="/admin/hotels/<%= hotel.id %>/commission">
-                <input type="hidden" name="returnTo" value="/admin/owner-dashboard" />
-                <div>
-                  <label for="commission-<%= hotel.id %>">Commission (%)</label>
-                  <input
-                    id="commission-<%= hotel.id %>"
-                    name="commissionRate"
-                    type="number"
-                    min="5"
-                    max="30"
-                    step="0.1"
-                    value="<%= Number(((hotel.commissionRate || platform.defaultCommissionRate) * 100).toFixed(2)) %>"
-                    required
-                  />
-                </div>
-                <button type="submit">Save</button>
-              </form>
+              <details class="inline-editor compact">
+                <summary>Adjust</summary>
+                <form class="commission-form" method="POST" action="/admin/hotels/<%= hotel.id %>/commission">
+                  <input type="hidden" name="returnTo" value="/admin/owner-dashboard" />
+                  <div>
+                    <label for="commission-<%= hotel.id %>">Commission (%)</label>
+                    <input
+                      id="commission-<%= hotel.id %>"
+                      name="commissionRate"
+                      type="number"
+                      min="5"
+                      max="30"
+                      step="0.1"
+                      value="<%= Number(((hotel.commissionRate || platform.defaultCommissionRate) * 100).toFixed(2)) %>"
+                      required
+                    />
+                  </div>
+                  <button type="submit">Save</button>
+                </form>
+              </details>
             </td>
             <td>
               <a class="ghost-link" href="/admin/hotels/<%= hotel.id %>/dashboard">Open</a>

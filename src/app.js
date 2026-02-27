@@ -126,6 +126,23 @@ const onboardingRoomCategoryConfig = [
     defaultPricePerNight: 135000
   }
 ];
+const hotelAmenityOptions = [
+  "Secured Parking",
+  "Fitness Center",
+  "Free-Wifi",
+  "Swimming Pool",
+  "Free-breakfast",
+  "Boating",
+  "Canoeing",
+  "Bar/Lounge"
+];
+const hotelRoomFeatureOptions = [
+  "Air-Conditioner",
+  "Cable/Satelite TV",
+  "Walk-In Shower",
+  "Wardrobe/Closet",
+  "Seating-Area"
+];
 
 function numericSeed(value) {
   const text = String(value || "");
@@ -154,6 +171,21 @@ function normalizeImageArray(value) {
   }
 
   return [];
+}
+
+function normalizeSelectableOptions(value, allowedOptions) {
+  const values = Array.isArray(value) ? value : [value];
+  const selected = [];
+  for (const candidate of values) {
+    const normalized = String(candidate || "").trim();
+    if (!normalized) {
+      continue;
+    }
+    if (allowedOptions.includes(normalized) && !selected.includes(normalized)) {
+      selected.push(normalized);
+    }
+  }
+  return selected;
 }
 
 function normalizeCommissionRatePercentInput(value, fallbackRate = defaultHotelCommissionRate) {
@@ -2407,6 +2439,8 @@ function createApp() {
     async (request, response) => {
       const snapshot = await getSnapshot();
       response.render("admin-hotel-new", {
+        amenityOptions: hotelAmenityOptions,
+        roomFeatureOptions: hotelRoomFeatureOptions,
         platform: snapshot.platform
       });
     }
@@ -2419,7 +2453,9 @@ function createApp() {
       const {
         name,
         description,
+        about,
         location,
+        address,
         bankName,
         bankAccount,
         cancellationPolicy,
@@ -2431,6 +2467,8 @@ function createApp() {
         standardRoomUnits,
         deluxeRoomUnits,
         executiveSuiteRoomUnits,
+        amenities,
+        roomFeatures,
         adminName,
         adminEmail,
         adminPassword
@@ -2438,6 +2476,12 @@ function createApp() {
 
       const result = await withWriteLock(async (data) => {
         const hotelSlug = toSlug(name);
+        const aboutText = String(about || description || "").trim();
+        const selectedAmenities = normalizeSelectableOptions(amenities, hotelAmenityOptions);
+        const selectedRoomFeatures = normalizeSelectableOptions(
+          roomFeatures,
+          hotelRoomFeatureOptions
+        );
         const roomUnitInputs = {
           standardRoomUnits,
           deluxeRoomUnits,
@@ -2451,8 +2495,10 @@ function createApp() {
         const hotel = {
           id: `hotel-${hotelSlug}-${Date.now()}`,
           name: String(name || "").trim(),
-          description: String(description || "").trim(),
+          description: aboutText,
+          about: aboutText,
           location: String(location || "").trim(),
+          address: String(address || "").trim(),
           bankName: String(bankName || "").trim(),
           bankAccount: String(bankAccount || "").trim(),
           cancellationPolicy: String(cancellationPolicy || "flexible"),
@@ -2460,6 +2506,8 @@ function createApp() {
             commissionRate,
             defaultCommissionRate
           ),
+          amenities: selectedAmenities,
+          roomFeatures: selectedRoomFeatures,
           premiumListingActive: premiumListingActive === "on",
           premiumListingExpiresAt:
             premiumListingActive === "on"
@@ -2471,8 +2519,23 @@ function createApp() {
           createdAt: new Date().toISOString()
         };
 
-        if (!hotel.name || !hotel.bankAccount || !hotel.bankName) {
-          return { error: "Hotel name and bank details are required." };
+        if (
+          !hotel.name ||
+          !hotel.location ||
+          !hotel.address ||
+          !hotel.description ||
+          !hotel.bankAccount ||
+          !hotel.bankName
+        ) {
+          return {
+            error:
+              "Hotel name, location, address, about section, and bank details are required."
+          };
+        }
+        if (!selectedAmenities.length || !selectedRoomFeatures.length) {
+          return {
+            error: "Select at least one hotel amenity and one room feature."
+          };
         }
         if (!hotelSlug) {
           return { error: "Hotel name must include letters or numbers." };
@@ -2539,7 +2602,8 @@ function createApp() {
             category: roomConfig.category,
             pricePerNight: roomConfig.defaultPricePerNight,
             totalUnits: roomConfig.totalUnits,
-            image: pickFallbackImage(roomFallbackImages, `${hotel.id}-${roomConfig.category}`)
+            image: pickFallbackImage(roomFallbackImages, `${hotel.id}-${roomConfig.category}`),
+            highlights: selectedRoomFeatures
           });
         }
 
@@ -2586,6 +2650,108 @@ function createApp() {
       }
 
       response.redirect(`/admin/hotels/${result.hotelId}/dashboard`);
+    }
+  );
+
+  app.post(
+    "/admin/hotels/:hotelId/profile",
+    requireRoles(["platform_admin"]),
+    requireHotelAccess,
+    async (request, response) => {
+      const hotelId = request.params.hotelId;
+      const {
+        name,
+        location,
+        address,
+        about,
+        bankName,
+        bankAccount,
+        cancellationPolicy,
+        commissionRate,
+        pickupFee,
+        coverImage,
+        galleryImages,
+        amenities,
+        roomFeatures,
+        premiumListingActive
+      } = request.body;
+      const aboutText = String(about || "").trim();
+      const selectedAmenities = normalizeSelectableOptions(amenities, hotelAmenityOptions);
+      const selectedRoomFeatures = normalizeSelectableOptions(
+        roomFeatures,
+        hotelRoomFeatureOptions
+      );
+
+      const result = await withWriteLock(async (data) => {
+        const hotel = data.hotels.find((item) => item.id === hotelId);
+        if (!hotel) {
+          return { error: "Hotel not found." };
+        }
+
+        const normalizedName = String(name || "").trim();
+        const normalizedLocation = String(location || "").trim();
+        const normalizedAddress = String(address || "").trim();
+        const normalizedBankName = String(bankName || "").trim();
+        const normalizedBankAccount = String(bankAccount || "").trim();
+        if (
+          !normalizedName ||
+          !normalizedLocation ||
+          !normalizedAddress ||
+          !aboutText ||
+          !normalizedBankName ||
+          !normalizedBankAccount
+        ) {
+          return {
+            error:
+              "Hotel name, location, address, about section, and bank details are required."
+          };
+        }
+        if (!selectedAmenities.length || !selectedRoomFeatures.length) {
+          return {
+            error: "Select at least one hotel amenity and one room feature."
+          };
+        }
+
+        hotel.name = normalizedName;
+        hotel.location = normalizedLocation;
+        hotel.address = normalizedAddress;
+        hotel.about = aboutText;
+        hotel.description = aboutText;
+        hotel.bankName = normalizedBankName;
+        hotel.bankAccount = normalizedBankAccount;
+        hotel.cancellationPolicy = String(cancellationPolicy || "flexible");
+        hotel.commissionRate = normalizeCommissionRatePercentInput(
+          commissionRate,
+          Number.isFinite(hotel.commissionRate)
+            ? hotel.commissionRate
+            : defaultHotelCommissionRate
+        );
+        hotel.pickupFee = Math.max(0, toNumber(pickupFee, hotel.pickupFee || 0));
+        hotel.coverImage = String(coverImage || "").trim();
+        hotel.galleryImages = normalizeImageArray(galleryImages);
+        hotel.amenities = selectedAmenities;
+        hotel.roomFeatures = selectedRoomFeatures;
+        hotel.premiumListingActive = premiumListingActive === "on";
+        hotel.premiumListingExpiresAt = hotel.premiumListingActive
+          ? hotel.premiumListingExpiresAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+          : null;
+        hotel.updatedAt = new Date().toISOString();
+
+        data.rooms
+          .filter((room) => room.hotelId === hotel.id)
+          .forEach((room) => {
+            room.highlights = selectedRoomFeatures;
+          });
+
+        return { ok: true };
+      });
+
+      if (result.error) {
+        setFlash(request, "error", result.error);
+      } else {
+        setFlash(request, "success", "Hotel profile updated successfully.");
+      }
+      response.redirect(`/admin/hotels/${hotelId}/dashboard`);
     }
   );
 
@@ -2797,6 +2963,16 @@ function createApp() {
         (sum, payment) => sum + payment.hotelPayout,
         0
       );
+      const selectedRoomFeatures =
+        Array.isArray(hotel.roomFeatures) && hotel.roomFeatures.length
+          ? hotel.roomFeatures
+          : Array.from(
+              new Set(
+                rooms.flatMap((room) =>
+                  Array.isArray(room.highlights) ? room.highlights : []
+                )
+              )
+            );
 
       response.render("admin-dashboard", {
         hotel,
@@ -2808,6 +2984,9 @@ function createApp() {
         grossSales,
         platformRevenue,
         hotelReceivables,
+        amenityOptions: hotelAmenityOptions,
+        roomFeatureOptions: hotelRoomFeatureOptions,
+        selectedRoomFeatures,
         checkInDate,
         checkOutDate,
         platform: snapshot.platform
