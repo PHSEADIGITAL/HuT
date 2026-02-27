@@ -13,6 +13,22 @@ function findUserByEmail(data, email) {
   return data.users.find((user) => user.email.toLowerCase() === email.toLowerCase());
 }
 
+function findUserByPhone(data, phone) {
+  return data.users.find((user) => String(user.phone || "").trim() === String(phone || "").trim());
+}
+
+function findUserByIdentifier(data, identifier) {
+  const cleaned = String(identifier || "").trim();
+  if (!cleaned) {
+    return null;
+  }
+
+  if (cleaned.includes("@")) {
+    return findUserByEmail(data, cleaned.toLowerCase());
+  }
+  return findUserByPhone(data, cleaned);
+}
+
 function findUserById(data, userId) {
   return data.users.find((user) => user.id === userId);
 }
@@ -64,6 +80,8 @@ function canAccessHotel(user, hotelId) {
 module.exports = {
   sanitizeUser,
   findUserByEmail,
+  findUserByPhone,
+  findUserByIdentifier,
   findUserById,
   registerCustomer,
   authenticateUser,

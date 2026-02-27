@@ -2,18 +2,47 @@
 
 <section class="hero small">
   <h1>Create listing</h1>
-  <p>Upload second-hand items for Bonny Island buyers. Monthly limit: 4 listings per user.</p>
+  <p>Upload second-hand items for Bonny Island buyers. Base limit is 4 listings per month.</p>
 </section>
 
 <section class="stats-grid">
   <article class="card">
     <h3>Listings used this month</h3>
-    <p class="metric"><%= limitState.used %> / 4</p>
+    <p class="metric"><%= limitState.used %> / <%= limitState.includedLimit %></p>
   </article>
   <article class="card">
     <h3>Remaining</h3>
     <p class="metric"><%= limitState.remaining %></p>
   </article>
+  <article class="card">
+    <h3>Wallet balance</h3>
+    <p class="metric"><%= formatNaira(walletBalance || 0) %></p>
+  </article>
+</section>
+
+<section class="card">
+  <h3>Listing plans</h3>
+  <p class="muted">Upgrade if you want to post more items this month.</p>
+  <% if (activePlanSubscriptions.length) { %>
+    <p class="muted tiny">
+      Active plans this month:
+      <%= activePlanSubscriptions.map((item) => item.planName).join(", ") %>
+    </p>
+  <% } %>
+  <div class="marketplace-plan-grid">
+    <% marketplacePlans.forEach((plan) => { %>
+      <article class="card">
+        <h4><%= plan.name %></h4>
+        <p class="market-price"><%= formatNaira(plan.amount) %></p>
+        <p class="muted tiny"><%= plan.description %></p>
+        <p class="muted tiny">Adds <%= plan.extraListings %> listings/month</p>
+        <form method="POST" action="/marketplace/plans/purchase">
+          <input type="hidden" name="planId" value="<%= plan.id %>" />
+          <button type="submit" class="ghost-btn">Buy with wallet</button>
+        </form>
+      </article>
+    <% }) %>
+  </div>
 </section>
 
 <section class="card">

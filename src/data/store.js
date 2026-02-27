@@ -35,6 +35,12 @@ function ensureDataShape(data) {
   if (!Array.isArray(data.walletTransactions)) {
     data.walletTransactions = [];
   }
+  if (!Array.isArray(data.marketplaceSubscriptions)) {
+    data.marketplaceSubscriptions = [];
+  }
+  if (!Array.isArray(data.passwordOtps)) {
+    data.passwordOtps = [];
+  }
 
   for (const user of data.users) {
     if (!Number.isFinite(user.walletBalance)) {

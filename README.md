@@ -16,8 +16,11 @@ Hut! is a hotel booking web app for Bonny Island with:
 - hotel admin dashboard with payout logs, days booked, and smart pricing insights
 - platform owner revenue dashboard aggregating all hotel/platform transactions
 - Bonny Island second-hand marketplace with image uploads
+- marketplace categories (Electronics, Furniture, Fashion, etc.)
+- paid marketplace listing plans (Basic/Premium) to increase monthly listing quota
 - seller contact unlock flow (NGN 200 fee paid to platform account)
 - virtual wallet for users (top-up and spend on unlock fees)
+- OTP-based forgot password (email or phone)
 
 ---
 
@@ -77,6 +80,11 @@ Open: `http://localhost:3000`
 - `GET /marketplace/my-listings` - Manage seller listings
 - `GET /marketplace/listings/:listingId` - Listing detail
 - `POST /marketplace/listings/:listingId/unlock-contact` - Unlock seller contact for NGN 200
+- `POST /marketplace/plans/purchase` - Buy listing plan to increase monthly quota
+- `GET /auth/forgot-password` - Request OTP reset
+- `POST /auth/forgot-password` - Send OTP via email/SMS
+- `GET /auth/reset-password` - OTP password reset form
+- `POST /auth/reset-password` - Reset password using OTP
 
 ### Hotel Admin
 - `GET /admin` - Admin overview (requires hotel admin/platform admin)
@@ -118,10 +126,14 @@ Provider-specific credentials are documented in `.env.example`.
 ## Marketplace Rules
 
 - Each user can create up to **4 listings per month**.
+- Users can increase limit by buying listing plans:
+  - **Basic Plan**: +6 listings/month
+  - **Premium Plan**: +21 listings/month
 - Seller phone numbers are masked by default.
 - Buyers pay **NGN 200** to unlock a seller contact.
 - Unlock fee is recorded as platform revenue.
 - Wallet top-ups are credited to user virtual wallets and tracked in the ledger.
+- Wallet top-up is disabled for hotel admin accounts.
 
 ---
 

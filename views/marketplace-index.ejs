@@ -2,17 +2,17 @@
 
 <section class="hero small">
   <h1>Bonny Island Marketplace</h1>
-  <p>Buy and sell second-hand items. Sellers can list up to 4 items monthly.</p>
+  <p>Buy and sell second-hand items. Base plan includes 4 listings monthly, with paid upgrades available.</p>
 </section>
 
 <section class="card">
   <div class="marketplace-actions">
-    <form class="grid-form compact" method="GET" action="/marketplace">
-      <div>
+    <form class="marketplace-filter-form" method="GET" action="/marketplace">
+      <div class="marketplace-filter-field">
         <label for="q">Search</label>
         <input id="q" name="q" value="<%= filters.q %>" placeholder="Phone, furniture, electronics..." />
       </div>
-      <div>
+      <div class="marketplace-filter-field">
         <label for="category">Category</label>
         <select id="category" name="category">
           <option value="">All categories</option>
@@ -21,7 +21,7 @@
           <% }) %>
         </select>
       </div>
-      <div>
+      <div class="marketplace-filter-field">
         <label for="condition">Condition</label>
         <select id="condition" name="condition">
           <option value="">All</option>
@@ -30,15 +30,15 @@
           <% }) %>
         </select>
       </div>
-      <div>
+      <div class="marketplace-filter-field">
         <label for="minPrice">Min price</label>
         <input id="minPrice" name="minPrice" type="number" min="0" value="<%= filters.minPrice %>" />
       </div>
-      <div>
+      <div class="marketplace-filter-field">
         <label for="maxPrice">Max price</label>
         <input id="maxPrice" name="maxPrice" type="number" min="0" value="<%= filters.maxPrice %>" />
       </div>
-      <div>
+      <div class="marketplace-filter-field">
         <label for="sort">Sort</label>
         <select id="sort" name="sort">
           <option value="newest" <%= filters.sort === "newest" ? "selected" : "" %>>Newest</option>
@@ -46,7 +46,7 @@
           <option value="price_desc" <%= filters.sort === "price_desc" ? "selected" : "" %>>Price high-low</option>
         </select>
       </div>
-      <div class="align-end">
+      <div class="marketplace-filter-field">
         <button type="submit">Apply filters</button>
       </div>
     </form>
@@ -62,6 +62,36 @@
     </div>
   </div>
 </section>
+
+<% if (currentUser && limitState) { %>
+  <section class="card">
+    <h3>Your listing allowance this month</h3>
+    <p class="muted">
+      Used <strong><%= limitState.used %></strong> of <strong><%= limitState.includedLimit %></strong>
+      listings (base 4 + <%= limitState.extraListings %> from plans).
+    </p>
+    <% if (activePlanSubscriptions.length) { %>
+      <p class="muted tiny">
+        Active plans:
+        <%= activePlanSubscriptions.map((item) => item.planName).join(", ") %>
+      </p>
+    <% } %>
+    <div class="marketplace-plan-grid">
+      <% marketplacePlans.forEach((plan) => { %>
+        <article class="card">
+          <h4><%= plan.name %></h4>
+          <p class="market-price"><%= formatNaira(plan.amount) %></p>
+          <p class="muted tiny"><%= plan.description %></p>
+          <p class="muted tiny">Adds <%= plan.extraListings %> listings/month</p>
+          <form method="POST" action="/marketplace/plans/purchase">
+            <input type="hidden" name="planId" value="<%= plan.id %>" />
+            <button type="submit" class="ghost-btn">Buy with wallet</button>
+          </form>
+        </article>
+      <% }) %>
+    </div>
+  </section>
+<% } %>
 
 <section class="marketplace-grid">
   <% if (!listings.length) { %>

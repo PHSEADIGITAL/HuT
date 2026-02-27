@@ -32,11 +32,14 @@ const { initializePayment, verifyPayment } = require("./services/providers/payme
 const {
   sanitizeUser,
   findUserById,
+  findUserByIdentifier,
   registerCustomer,
   authenticateUser,
   canAccessHotel
 } = require("./services/users");
 const { hashPassword } = require("./services/password");
+const { sendSms } = require("./services/providers/smsProvider");
+const { sendEmail } = require("./services/providers/emailProvider");
 
 function toNumber(value, fallback = 0) {
   const parsed = Number(value);
@@ -234,6 +237,7 @@ function withRoomDisplayMeta(room) {
 
 const marketplaceListingLimitPerMonth = 4;
 const contactUnlockFeeNaira = 200;
+const passwordOtpExpiryMinutes = 10;
 const marketplaceUploadDir = path.join(
   __dirname,
   "..",
@@ -247,6 +251,7 @@ const marketplaceCategories = [
   "Electronics",
   "Furniture",
   "Fashion",
+  "Gaming",
   "Mobile Phones",
   "Computers",
   "Appliances",
@@ -257,6 +262,22 @@ const marketplaceCategories = [
   "Other"
 ];
 const marketplaceConditions = ["Used", "Like New", "Refurbished"];
+const marketplacePlans = [
+  {
+    id: "basic",
+    name: "Basic Plan",
+    amount: 2000,
+    extraListings: 6,
+    description: "Increase monthly limit by 6 listings."
+  },
+  {
+    id: "premium",
+    name: "Premium Plan",
+    amount: 5000,
+    extraListings: 21,
+    description: "Increase monthly limit by 21 listings."
+  }
+];
 
 fs.mkdirSync(marketplaceUploadDir, { recursive: true });
 
@@ -370,15 +391,47 @@ function countMonthlyListings(data, userId, monthKey) {
   ).length;
 }
 
+function getMarketplacePlanById(planId) {
+  return marketplacePlans.find((plan) => plan.id === planId) || null;
+}
+
+function getMonthlyPlanExtraListings(data, userId, monthKey) {
+  return data.marketplaceSubscriptions
+    .filter(
+      (subscription) =>
+        subscription.userId === userId &&
+        subscription.monthKey === monthKey &&
+        subscription.status === "active"
+    )
+    .reduce((sum, subscription) => sum + (subscription.extraListings || 0), 0);
+}
+
 function canCreateMarketplaceListing(data, userId, dateValue = new Date()) {
   const monthKey = toMonthKey(dateValue);
   const used = countMonthlyListings(data, userId, monthKey);
+  const extraListings = getMonthlyPlanExtraListings(data, userId, monthKey);
+  const includedLimit = marketplaceListingLimitPerMonth + extraListings;
   return {
     used,
-    remaining: Math.max(0, marketplaceListingLimitPerMonth - used),
+    includedLimit,
+    extraListings,
+    remaining: Math.max(0, includedLimit - used),
     monthKey,
-    allowed: used < marketplaceListingLimitPerMonth
+    allowed: used < includedLimit
   };
+}
+
+function generateOtpCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function isEmailIdentifier(value) {
+  return String(value || "").includes("@");
+}
+
+function normalizeIdentifier(value) {
+  const cleaned = sanitizeMarketplaceText(value, "");
+  return isEmailIdentifier(cleaned) ? cleaned.toLowerCase() : cleaned;
 }
 
 function listingPrimaryImage(listing) {
@@ -402,6 +455,23 @@ function hasUnlockedSellerContact(data, listingId, buyerUserId) {
   return data.marketplaceUnlocks.some(
     (unlock) => unlock.listingId === listingId && unlock.buyerUserId === buyerUserId
   );
+}
+
+async function dispatchPasswordOtp({ identifier, code }) {
+  if (isEmailIdentifier(identifier)) {
+    await sendEmail({
+      to: identifier,
+      subject: "Hut password reset OTP",
+      text: `Your Hut password reset OTP is ${code}. It expires in ${passwordOtpExpiryMinutes} minutes.`
+    });
+    return "email";
+  }
+
+  await sendSms({
+    to: identifier,
+    body: `Hut OTP: ${code}. Expires in ${passwordOtpExpiryMinutes} mins.`
+  });
+  return "sms";
 }
 
 function canViewBooking(user, booking) {
@@ -659,6 +729,173 @@ function createApp() {
     request.session.userId = user.id;
     setFlash(request, "success", "Logged in successfully.");
     response.redirect(nextUrl);
+  });
+
+  app.get("/auth/forgot-password", (request, response) => {
+    if (request.currentUser) {
+      response.redirect("/");
+      return;
+    }
+
+    response.render("auth-forgot-password", {
+      identifier: sanitizeMarketplaceText(request.query.identifier, "")
+    });
+  });
+
+  app.post("/auth/forgot-password", async (request, response) => {
+    const identifier = normalizeIdentifier(request.body.identifier);
+    if (!identifier) {
+      setFlash(request, "error", "Provide your email or phone number.");
+      response.redirect("/auth/forgot-password");
+      return;
+    }
+
+    const otpSeedResult = await withWriteLock(async (data) => {
+      const user = findUserByIdentifier(data, identifier);
+      if (!user) {
+        return { userFound: false };
+      }
+
+      const now = Date.now();
+      const nowIso = new Date(now).toISOString();
+      data.passwordOtps
+        .filter((otp) => otp.userId === user.id && otp.status === "active" && !otp.consumedAt)
+        .forEach((otp) => {
+          otp.status = "replaced";
+          otp.consumedAt = nowIso;
+        });
+
+      const otpCode = generateOtpCode();
+      const otp = {
+        id: randomUUID(),
+        userId: user.id,
+        identifier,
+        channel: isEmailIdentifier(identifier) ? "email" : "sms",
+        code: otpCode,
+        status: "active",
+        attempts: 0,
+        expiresAt: new Date(now + passwordOtpExpiryMinutes * 60 * 1000).toISOString(),
+        createdAt: nowIso
+      };
+      data.passwordOtps.push(otp);
+      return { userFound: true, otp };
+    });
+
+    if (otpSeedResult.userFound && otpSeedResult.otp) {
+      try {
+        await dispatchPasswordOtp({
+          identifier,
+          code: otpSeedResult.otp.code
+        });
+      } catch (error) {
+        setFlash(
+          request,
+          "error",
+          "Unable to deliver OTP right now. Please try again shortly."
+        );
+        response.redirect(`/auth/forgot-password?identifier=${encodeURIComponent(identifier)}`);
+        return;
+      }
+    }
+
+    setFlash(
+      request,
+      "success",
+      "If the account exists, an OTP has been sent. Proceed to reset password."
+    );
+    response.redirect(`/auth/reset-password?identifier=${encodeURIComponent(identifier)}`);
+  });
+
+  app.get("/auth/reset-password", (request, response) => {
+    if (request.currentUser) {
+      response.redirect("/");
+      return;
+    }
+
+    response.render("auth-reset-password", {
+      identifier: sanitizeMarketplaceText(request.query.identifier, "")
+    });
+  });
+
+  app.post("/auth/reset-password", async (request, response) => {
+    const identifier = normalizeIdentifier(request.body.identifier);
+    const otpCode = sanitizeMarketplaceText(request.body.otpCode);
+    const password = String(request.body.password || "");
+    const confirmPassword = String(request.body.confirmPassword || "");
+
+    if (!identifier || !otpCode || !password || !confirmPassword) {
+      setFlash(request, "error", "All fields are required.");
+      response.redirect(`/auth/reset-password?identifier=${encodeURIComponent(identifier)}`);
+      return;
+    }
+
+    if (password.length < authConfig.minimumPasswordLength) {
+      setFlash(
+        request,
+        "error",
+        `Password must be at least ${authConfig.minimumPasswordLength} characters.`
+      );
+      response.redirect(`/auth/reset-password?identifier=${encodeURIComponent(identifier)}`);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setFlash(request, "error", "Password confirmation does not match.");
+      response.redirect(`/auth/reset-password?identifier=${encodeURIComponent(identifier)}`);
+      return;
+    }
+
+    const result = await withWriteLock(async (data) => {
+      const user = findUserByIdentifier(data, identifier);
+      if (!user) {
+        return { error: "Invalid OTP or account identifier." };
+      }
+
+      const now = Date.now();
+      const nowIso = new Date(now).toISOString();
+      const otpRecord = data.passwordOtps
+        .filter(
+          (otp) =>
+            otp.userId === user.id &&
+            otp.status === "active" &&
+            !otp.consumedAt &&
+            String(otp.code) === otpCode
+        )
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+
+      if (!otpRecord) {
+        return { error: "Invalid OTP or account identifier." };
+      }
+
+      otpRecord.attempts = (otpRecord.attempts || 0) + 1;
+      if (new Date(otpRecord.expiresAt).getTime() < now) {
+        otpRecord.status = "expired";
+        otpRecord.consumedAt = nowIso;
+        return { error: "OTP has expired. Request a new OTP." };
+      }
+
+      user.passwordHash = hashPassword(password);
+      otpRecord.status = "used";
+      otpRecord.consumedAt = nowIso;
+
+      data.passwordOtps
+        .filter((otp) => otp.userId === user.id && otp.id !== otpRecord.id && otp.status === "active")
+        .forEach((otp) => {
+          otp.status = "replaced";
+          otp.consumedAt = nowIso;
+        });
+
+      return { ok: true };
+    });
+
+    if (result.error) {
+      setFlash(request, "error", result.error);
+      response.redirect(`/auth/reset-password?identifier=${encodeURIComponent(identifier)}`);
+      return;
+    }
+
+    setFlash(request, "success", "Password updated successfully. You can sign in now.");
+    response.redirect("/auth/login");
   });
 
   app.post("/auth/logout", (request, response) => {
@@ -1305,17 +1542,25 @@ function createApp() {
     const unlocks = snapshot.marketplaceUnlocks
       .filter((unlock) => unlock.buyerUserId === user.id)
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const canTopUp = request.currentUser.role !== "hotel_admin";
 
     response.render("wallet", {
       walletUser: user,
       walletTransactions: transactions,
       unlocks,
+      canTopUp,
       contactUnlockFeeNaira,
       platform: snapshot.platform
     });
   });
 
   app.post("/wallet/topup", requireAuth, async (request, response) => {
+    if (request.currentUser.role === "hotel_admin") {
+      setFlash(request, "error", "Hotel admins cannot credit virtual wallets.");
+      response.redirect("/wallet");
+      return;
+    }
+
     const amount = Math.round(toNumber(request.body.amount, 0));
     const reference = sanitizeMarketplaceText(request.body.reference, `BANK-${Date.now()}`);
 
@@ -1430,11 +1675,25 @@ function createApp() {
     }
 
     let walletBalance = null;
+    let limitState = null;
+    let activePlanSubscriptions = [];
     if (request.currentUser) {
       const currentUser = snapshot.users.find((user) => user.id === request.currentUser.id);
       if (currentUser) {
         ensureUserWallet(currentUser);
         walletBalance = currentUser.walletBalance;
+        limitState = canCreateMarketplaceListing(snapshot, currentUser.id);
+        activePlanSubscriptions = snapshot.marketplaceSubscriptions
+          .filter(
+            (item) =>
+              item.userId === currentUser.id &&
+              item.monthKey === limitState.monthKey &&
+              item.status === "active"
+          )
+          .map((item) => ({
+            ...item,
+            planName: getMarketplacePlanById(item.planId)?.name || item.planId
+          }));
       }
     }
 
@@ -1451,6 +1710,9 @@ function createApp() {
         sort
       },
       walletBalance,
+      marketplacePlans,
+      limitState,
+      activePlanSubscriptions,
       contactUnlockFeeNaira,
       platform: snapshot.platform
     });
@@ -1459,12 +1721,128 @@ function createApp() {
   app.get("/marketplace/new", requireAuth, async (request, response) => {
     const snapshot = await getSnapshot();
     const limitState = canCreateMarketplaceListing(snapshot, request.currentUser.id);
+    const user = snapshot.users.find((item) => item.id === request.currentUser.id);
+    if (user) {
+      ensureUserWallet(user);
+    }
+    const activePlanSubscriptions = snapshot.marketplaceSubscriptions
+      .filter(
+        (item) =>
+          item.userId === request.currentUser.id &&
+          item.monthKey === limitState.monthKey &&
+          item.status === "active"
+      )
+      .map((item) => ({
+        ...item,
+        planName: getMarketplacePlanById(item.planId)?.name || item.planId
+      }));
     response.render("marketplace-new", {
       limitState,
       categories: marketplaceCategories,
       conditions: marketplaceConditions,
+      marketplacePlans,
+      activePlanSubscriptions,
+      walletBalance: user ? user.walletBalance : 0,
       platform: snapshot.platform
     });
+  });
+
+  app.post("/marketplace/plans/purchase", requireAuth, async (request, response) => {
+    const planId = sanitizeMarketplaceText(request.body.planId, "").toLowerCase();
+    const plan = getMarketplacePlanById(planId);
+    if (!plan) {
+      setFlash(request, "error", "Selected listing plan does not exist.");
+      response.redirect("/marketplace/new");
+      return;
+    }
+
+    if (request.currentUser.role === "hotel_admin") {
+      setFlash(
+        request,
+        "error",
+        "Hotel admins cannot purchase marketplace listing plans."
+      );
+      response.redirect("/marketplace/new");
+      return;
+    }
+
+    const result = await withWriteLock(async (data) => {
+      const user = data.users.find((item) => item.id === request.currentUser.id);
+      if (!user) {
+        return { error: "User account not found." };
+      }
+      ensureUserWallet(user);
+      if (user.walletBalance < plan.amount) {
+        return {
+          error: `Insufficient wallet balance. You need ${formatNaira(plan.amount)} to purchase this plan.`
+        };
+      }
+
+      const monthKey = toMonthKey(new Date());
+      const paymentId = randomUUID();
+      const walletResult = createWalletEntry(data, {
+        userId: user.id,
+        type: "marketplace_plan_purchase",
+        direction: "debit",
+        amount: plan.amount,
+        description: `${plan.name} purchase for listing limit increase`,
+        reference: `PLAN-${plan.id.toUpperCase()}-${Date.now()}`,
+        relatedPaymentId: paymentId
+      });
+      if (walletResult.error) {
+        return { error: walletResult.error };
+      }
+
+      data.marketplaceSubscriptions.push({
+        id: randomUUID(),
+        userId: user.id,
+        planId: plan.id,
+        amount: plan.amount,
+        extraListings: plan.extraListings,
+        monthKey,
+        status: "active",
+        createdAt: new Date().toISOString()
+      });
+
+      data.payments.push({
+        id: paymentId,
+        bookingId: null,
+        hotelId: null,
+        userId: user.id,
+        listingId: null,
+        transactionRef: `HUT-MPLN-${Date.now()}`,
+        transactionType: "marketplace_plan_purchase",
+        paymentProvider: "wallet",
+        paymentExternalId: `WALLET-${user.id}`,
+        grossAmount: plan.amount,
+        hotelPayout: 0,
+        platformEarning: plan.amount,
+        commissionRate: 0,
+        hotelBankAccount: null,
+        platformBankAccount: data.platform.bankAccount,
+        createdAt: new Date().toISOString()
+      });
+
+      const nextLimitState = canCreateMarketplaceListing(data, user.id);
+      return {
+        ok: true,
+        balanceAfter: walletResult.balanceAfter,
+        nextLimitState
+      };
+    });
+
+    if (result.error) {
+      setFlash(request, "error", result.error);
+      response.redirect("/marketplace/new");
+      return;
+    }
+
+    setFlash(
+      request,
+      "success",
+      `${plan.name} activated. New monthly listing limit: ${result.nextLimitState.includedLimit}.`
+    );
+    response.redirect("/marketplace/new");
   });
 
   app.post(
@@ -1498,7 +1876,7 @@ function createApp() {
         const limitState = canCreateMarketplaceListing(data, seller.id);
         if (!limitState.allowed) {
           return {
-            error: `Monthly listing limit reached. You can only create ${marketplaceListingLimitPerMonth} listings per month.`
+            error: `Monthly listing limit reached. You can only create ${limitState.includedLimit} listings this month on your current plan.`
           };
         }
 
@@ -1537,9 +1915,27 @@ function createApp() {
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
       .map((item) => enrichMarketplaceListing(snapshot, item));
     const limitState = canCreateMarketplaceListing(snapshot, request.currentUser.id);
+    const user = snapshot.users.find((item) => item.id === request.currentUser.id);
+    if (user) {
+      ensureUserWallet(user);
+    }
+    const activePlanSubscriptions = snapshot.marketplaceSubscriptions
+      .filter(
+        (item) =>
+          item.userId === request.currentUser.id &&
+          item.monthKey === limitState.monthKey &&
+          item.status === "active"
+      )
+      .map((item) => ({
+        ...item,
+        planName: getMarketplacePlanById(item.planId)?.name || item.planId
+      }));
     response.render("marketplace-my-listings", {
       listings,
       limitState,
+      marketplacePlans,
+      activePlanSubscriptions,
+      walletBalance: user ? user.walletBalance : 0,
       platform: snapshot.platform
     });
   });
@@ -1745,6 +2141,9 @@ function createApp() {
       const marketplaceRevenue = allPayments
         .filter((payment) => payment.transactionType === "marketplace_contact_unlock")
         .reduce((sum, payment) => sum + payment.platformEarning, 0);
+      const marketplacePlanRevenue = allPayments
+        .filter((payment) => payment.transactionType === "marketplace_plan_purchase")
+        .reduce((sum, payment) => sum + payment.platformEarning, 0);
       const netPlatformRevenue = allPayments
         .filter((payment) => payment.transactionType !== "wallet_topup")
         .reduce((sum, payment) => sum + payment.platformEarning, 0);
@@ -1776,6 +2175,7 @@ function createApp() {
           commissionRevenue,
           premiumRevenue,
           marketplaceRevenue,
+          marketplacePlanRevenue,
           netPlatformRevenue,
           walletLiability
         },
