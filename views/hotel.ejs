@@ -6,6 +6,10 @@
       Back to search results
     </a>
   </p>
+  <div class="history-nav">
+    <button type="button" class="ghost-btn tiny js-history-back">Back</button>
+    <button type="button" class="ghost-btn tiny js-history-forward">Forward</button>
+  </div>
   <h1><%= hotel.name %></h1>
   <p class="muted"><%= "★".repeat(hotel.starRating) %> <%= hotel.propertyType %> • <%= hotel.location %></p>
   <% if (hotel.address) { %>
@@ -113,6 +117,67 @@
           <li><%= rule %></li>
         <% }) %>
       </ul>
+    </article>
+
+    <article class="card">
+      <h2>Guest reviews</h2>
+      <% if (hotelReviewStats && hotelReviewStats.count > 0) { %>
+        <p class="muted">
+          Overall rating:
+          <strong><%= hotelReviewStats.average %> / 5</strong>
+          (<%= hotelReviewStats.count %> review<%= hotelReviewStats.count === 1 ? "" : "s" %>)
+        </p>
+      <% } else { %>
+        <p class="muted">No guest reviews yet.</p>
+      <% } %>
+
+      <% if (currentUser) { %>
+        <form class="grid-form compact" method="POST" action="/hotels/<%= hotel.id %>/reviews">
+          <input
+            type="hidden"
+            name="returnTo"
+            value="/hotels/<%= hotel.id %>?destination=<%= encodeURIComponent(search.destination) %>&checkInDate=<%= checkInDate %>&checkOutDate=<%= checkOutDate %>&adults=<%= search.adults %>&rooms=<%= search.rooms %>"
+          />
+          <div>
+            <label for="hotelRating">Your rating</label>
+            <select id="hotelRating" name="rating" required>
+              <option value="">Select rating</option>
+              <% [5, 4, 3, 2, 1].forEach((score) => { %>
+                <option value="<%= score %>" <%= userHotelReview && userHotelReview.rating === score ? "selected" : "" %>>
+                  <%= score %> star<%= score === 1 ? "" : "s" %>
+                </option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="full">
+            <label for="hotelComment">Your review</label>
+            <textarea id="hotelComment" name="comment" rows="3" required><%= userHotelReview ? userHotelReview.comment : "" %></textarea>
+          </div>
+          <div class="full">
+            <button type="submit"><%= userHotelReview ? "Update review" : "Submit review" %></button>
+          </div>
+        </form>
+      <% } else { %>
+        <p class="muted tiny">
+          <a href="/auth/login?next=<%= encodeURIComponent(`/hotels/${hotel.id}?destination=${encodeURIComponent(search.destination)}&checkInDate=${checkInDate}&checkOutDate=${checkOutDate}&adults=${search.adults}&rooms=${search.rooms}`) %>">
+            Sign in
+          </a>
+          to leave a hotel review.
+        </p>
+      <% } %>
+
+      <div class="review-list">
+        <% hotelReviews.forEach((review) => { %>
+          <article class="review-card">
+            <p class="review-title">
+              <strong><%= review.reviewerName %></strong>
+              <span class="muted tiny">• <%= review.rating %> / 5</span>
+            </p>
+            <p class="muted tiny"><%= review.createdAt %></p>
+            <p><%= review.comment %></p>
+          </article>
+        <% }) %>
+      </div>
     </article>
   </div>
 

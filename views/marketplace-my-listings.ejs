@@ -18,6 +18,8 @@
     <p class="muted tiny">Remaining: <strong><%= limitState.remaining %></strong></p>
     <p class="muted tiny">Total listings: <strong><%= listings.length %></strong></p>
     <p class="muted tiny">Wallet: <strong><%= formatNaira(walletBalance || 0) %></strong></p>
+    <p class="muted tiny">Points: <strong><%= marketplacePoints || 0 %></strong></p>
+    <p class="muted tiny">Paid unlocks: <strong><%= marketplacePaidUnlockCount || 0 %></strong></p>
 
     <div class="marketplace-actions">
       <a class="button-link full-width" href="/marketplace/new">Create listing</a>

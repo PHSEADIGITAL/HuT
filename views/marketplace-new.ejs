@@ -17,6 +17,8 @@
     <p class="metric"><%= limitState.used %> / <%= limitState.includedLimit %></p>
     <p class="muted tiny">Remaining: <strong><%= limitState.remaining %></strong></p>
     <p class="muted tiny">Wallet balance: <strong><%= formatNaira(walletBalance || 0) %></strong></p>
+    <p class="muted tiny">Marketplace points: <strong><%= marketplacePoints || 0 %></strong></p>
+    <p class="muted tiny">Paid unlocks: <strong><%= marketplacePaidUnlockCount || 0 %></strong></p>
 
     <hr />
 

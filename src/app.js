@@ -553,12 +553,64 @@ function getNeighborhoodOptionsForLocation(location = "") {
   return allMarketplaceNeighborhoodOptions;
 }
 
+function normalizeRating(value, fallback = 0) {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return fallback;
+  }
+  const parsed = Math.round(toNumber(value, fallback));
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.min(5, Math.max(1, parsed));
+}
+
+function getMarketplaceSellerRatingStats(data, sellerUserId) {
+  const reviews = (data.marketplaceSellerReviews || []).filter(
+    (review) => review.sellerUserId === sellerUserId
+  );
+  if (!reviews.length) {
+    return {
+      count: 0,
+      average: 0
+    };
+  }
+  const total = reviews.reduce((sum, review) => sum + normalizeRating(review.rating, 0), 0);
+  return {
+    count: reviews.length,
+    average: Number((total / reviews.length).toFixed(1))
+  };
+}
+
+function getHotelRatingStats(data, hotelId) {
+  const reviews = (data.hotelReviews || []).filter((review) => review.hotelId === hotelId);
+  if (!reviews.length) {
+    return {
+      count: 0,
+      average: 0,
+      averageTenScale: 0
+    };
+  }
+  const total = reviews.reduce((sum, review) => sum + normalizeRating(review.rating, 0), 0);
+  const average = Number((total / reviews.length).toFixed(1));
+  return {
+    count: reviews.length,
+    average,
+    averageTenScale: Number((average * 2).toFixed(1))
+  };
+}
+
 function ensureUserWallet(user) {
   if (!user) {
     return;
   }
   if (!Number.isFinite(user.walletBalance)) {
     user.walletBalance = 0;
+  }
+  if (!Number.isFinite(user.marketplacePoints)) {
+    user.marketplacePoints = 0;
+  }
+  if (!Number.isFinite(user.marketplacePaidUnlockCount)) {
+    user.marketplacePaidUnlockCount = 0;
   }
 }
 
@@ -664,13 +716,16 @@ function enrichMarketplaceListing(data, listing) {
   const seller = data.users.find((user) => user.id === listing.sellerUserId);
   const location = normalizeMarketplaceLocation(listing.location);
   const neighborhood = normalizeMarketplaceNeighborhood(listing.neighborhood, location);
+  const sellerRating = getMarketplaceSellerRatingStats(data, listing.sellerUserId);
   return {
     ...listing,
     primaryImage: listingPrimaryImage(listing),
     sellerName: seller ? seller.name : "Unknown seller",
     sellerPhoneMasked: seller ? maskPhone(seller.phone) : "Hidden",
     location,
-    neighborhood
+    neighborhood,
+    sellerRatingAverage: sellerRating.average,
+    sellerRatingCount: sellerRating.count
   };
 }
 
@@ -1175,7 +1230,16 @@ function createApp() {
     const snapshot = await getSnapshot();
 
     let hotels = sortHotelsForMarketplace(snapshot.hotels).map((hotel) => {
-      const hotelWithMedia = withHotelListingMeta(withHotelMedia(hotel));
+      const reviewStats = getHotelRatingStats(snapshot, hotel.id);
+      const hotelWithReviews =
+        reviewStats.count > 0
+          ? {
+              ...hotel,
+              reviewScore: reviewStats.averageTenScale,
+              reviewCount: reviewStats.count
+            }
+          : hotel;
+      const hotelWithMedia = withHotelListingMeta(withHotelMedia(hotelWithReviews));
       const rooms = snapshot.rooms.filter((room) => room.hotelId === hotel.id);
       const minPrice = rooms.reduce(
         (current, room) => Math.min(current, room.pricePerNight),
@@ -1188,7 +1252,8 @@ function createApp() {
         ...hotelWithMedia,
         minPrice: Number.isFinite(minPrice) ? minPrice : 0,
         roomsAvailable,
-        roomTypePreview
+        roomTypePreview,
+        reviewAverageFiveScale: reviewStats.average
       };
     });
 
@@ -1272,7 +1337,16 @@ function createApp() {
       return;
     }
 
-    const hotelWithMedia = withHotelListingMeta(withHotelMedia(hotel));
+    const hotelReviewStats = getHotelRatingStats(snapshot, hotel.id);
+    const hotelWithReviews =
+      hotelReviewStats.count > 0
+        ? {
+            ...hotel,
+            reviewScore: hotelReviewStats.averageTenScale,
+            reviewCount: hotelReviewStats.count
+          }
+        : hotel;
+    const hotelWithMedia = withHotelListingMeta(withHotelMedia(hotelWithReviews));
     const rooms = snapshot.rooms
       .filter((room) => room.hotelId === hotel.id)
       .map((room) => withRoomDisplayMeta(withRoomMedia(room)));
@@ -1291,6 +1365,19 @@ function createApp() {
       ...room,
       availability: availabilityByRoom.find((a) => a.roomId === room.id)
     }));
+    const hotelReviews = (snapshot.hotelReviews || [])
+      .filter((review) => review.hotelId === hotel.id)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .map((review) => {
+        const reviewer = snapshot.users.find((item) => item.id === review.reviewerUserId);
+        return {
+          ...review,
+          reviewerName: reviewer ? reviewer.name : "Guest user"
+        };
+      });
+    const userHotelReview = request.currentUser
+      ? hotelReviews.find((review) => review.reviewerUserId === request.currentUser.id) || null
+      : null;
 
     response.render("hotel", {
       hotel: {
@@ -1305,9 +1392,68 @@ function createApp() {
         adults,
         rooms: roomsRequested
       },
+      hotelReviews,
+      hotelReviewStats,
+      userHotelReview,
       cancellationRules: getRefundPolicyRules(hotel.cancellationPolicy),
       platform: snapshot.platform
     });
+  });
+
+  app.post("/hotels/:hotelId/reviews", requireAuth, async (request, response) => {
+    const hotelId = request.params.hotelId;
+    const returnTo = safeNextPath(request.body.returnTo || `/hotels/${hotelId}`);
+    const rating = normalizeRating(request.body.rating, 0);
+    const comment = sanitizeMarketplaceText(request.body.comment, "");
+
+    if (!rating || !comment) {
+      setFlash(request, "error", "Rating and comment are required.");
+      response.redirect(returnTo);
+      return;
+    }
+
+    const result = await withWriteLock(async (data) => {
+      const hotel = data.hotels.find((item) => item.id === hotelId);
+      if (!hotel) {
+        return { error: "Hotel not found." };
+      }
+      const reviewer = data.users.find((item) => item.id === request.currentUser.id);
+      if (!reviewer) {
+        return { error: "Your account was not found. Please sign in again." };
+      }
+
+      const existing = (data.hotelReviews || []).find(
+        (review) =>
+          review.hotelId === hotelId && review.reviewerUserId === request.currentUser.id
+      );
+      if (existing) {
+        existing.rating = rating;
+        existing.comment = comment;
+        existing.updatedAt = new Date().toISOString();
+      } else {
+        data.hotelReviews.push({
+          id: randomUUID(),
+          hotelId,
+          reviewerUserId: request.currentUser.id,
+          rating,
+          comment,
+          createdAt: new Date().toISOString()
+        });
+      }
+
+      return { ok: true, updated: Boolean(existing) };
+    });
+
+    if (result.error) {
+      setFlash(request, "error", result.error);
+    } else {
+      setFlash(
+        request,
+        "success",
+        result.updated ? "Hotel review updated." : "Hotel review submitted."
+      );
+    }
+    response.redirect(returnTo);
   });
 
   app.post("/bookings", requireRoles(["customer"]), async (request, response) => {
@@ -1420,6 +1566,7 @@ function createApp() {
 
       const booking = {
         id: randomUUID(),
+        referenceNumber: `HUT-BKG-${Date.now()}-${Math.floor(Math.random() * 900 + 100)}`,
         hotelId: hotel.id,
         roomId: room.id,
         roomCategory: room.category,
@@ -1803,6 +1950,8 @@ function createApp() {
       unlocks,
       canTopUp,
       contactUnlockFeeNaira,
+      marketplacePoints: user.marketplacePoints,
+      marketplacePaidUnlockCount: user.marketplacePaidUnlockCount,
       platform: snapshot.platform
     });
   });
@@ -1984,6 +2133,8 @@ function createApp() {
     }
 
     let walletBalance = null;
+    let marketplacePoints = 0;
+    let marketplacePaidUnlockCount = 0;
     let limitState = null;
     let activePlanSubscriptions = [];
     if (request.currentUser) {
@@ -1991,6 +2142,8 @@ function createApp() {
       if (currentUser) {
         ensureUserWallet(currentUser);
         walletBalance = currentUser.walletBalance;
+        marketplacePoints = currentUser.marketplacePoints;
+        marketplacePaidUnlockCount = currentUser.marketplacePaidUnlockCount;
         limitState = canCreateMarketplaceListing(snapshot, currentUser.id);
         activePlanSubscriptions = snapshot.marketplaceSubscriptions
           .filter(
@@ -2025,6 +2178,8 @@ function createApp() {
         sort
       },
       walletBalance,
+      marketplacePoints,
+      marketplacePaidUnlockCount,
       marketplacePlans,
       limitState,
       activePlanSubscriptions,
@@ -2063,6 +2218,8 @@ function createApp() {
       marketplacePlans,
       activePlanSubscriptions,
       walletBalance: user ? user.walletBalance : 0,
+      marketplacePoints: user ? user.marketplacePoints : 0,
+      marketplacePaidUnlockCount: user ? user.marketplacePaidUnlockCount : 0,
       platform: snapshot.platform
     });
   });
@@ -2268,6 +2425,8 @@ function createApp() {
       marketplacePlans,
       activePlanSubscriptions,
       walletBalance: user ? user.walletBalance : 0,
+      marketplacePoints: user ? user.marketplacePoints : 0,
+      marketplacePaidUnlockCount: user ? user.marketplacePaidUnlockCount : 0,
       platform: snapshot.platform
     });
   });
@@ -2310,6 +2469,7 @@ function createApp() {
 
     const enrichedListing = enrichMarketplaceListing(snapshot, listing);
     const seller = snapshot.users.find((user) => user.id === listing.sellerUserId);
+    const sellerRating = getMarketplaceSellerRatingStats(snapshot, listing.sellerUserId);
     const isSeller = request.currentUser && request.currentUser.id === listing.sellerUserId;
     const isPlatformAdmin =
       request.currentUser && request.currentUser.role === "platform_admin";
@@ -2326,11 +2486,13 @@ function createApp() {
     );
 
     let walletBalance = null;
+    let marketplacePoints = 0;
     if (request.currentUser) {
       const currentUser = snapshot.users.find((user) => user.id === request.currentUser.id);
       if (currentUser) {
         ensureUserWallet(currentUser);
         walletBalance = currentUser.walletBalance;
+        marketplacePoints = currentUser.marketplacePoints;
       }
     }
 
@@ -2348,14 +2510,116 @@ function createApp() {
       listing: enrichedListing,
       categories: marketplaceCategories,
       seller,
+      sellerRating,
       canViewContact,
       canUnlock,
       walletBalance,
+      marketplacePoints,
       contactUnlockFeeNaira,
       relatedListings,
       platform: snapshot.platform
     });
   });
+
+  app.get("/marketplace/sellers/:sellerUserId", async (request, response) => {
+    const sellerUserId = request.params.sellerUserId;
+    const snapshot = await getSnapshot();
+    const seller = snapshot.users.find((user) => user.id === sellerUserId);
+    if (!seller) {
+      response.status(404).render("error", {
+        message: "Seller profile not found.",
+        platform: snapshot.platform
+      });
+      return;
+    }
+
+    const sellerListings = snapshot.marketplaceListings
+      .filter((listing) => listing.sellerUserId === sellerUserId && listing.status === "active")
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .map((listing) => enrichMarketplaceListing(snapshot, listing));
+    const sellerReviews = (snapshot.marketplaceSellerReviews || [])
+      .filter((review) => review.sellerUserId === sellerUserId)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .map((review) => {
+        const reviewer = snapshot.users.find((user) => user.id === review.reviewerUserId);
+        return {
+          ...review,
+          reviewerName: reviewer ? reviewer.name : "Marketplace user"
+        };
+      });
+    const sellerRating = getMarketplaceSellerRatingStats(snapshot, sellerUserId);
+    const userSellerReview = request.currentUser
+      ? sellerReviews.find((review) => review.reviewerUserId === request.currentUser.id) || null
+      : null;
+    response.render("marketplace-seller", {
+      seller,
+      sellerListings,
+      sellerReviews,
+      sellerRating,
+      userSellerReview,
+      categories: marketplaceCategories,
+      platform: snapshot.platform
+    });
+  });
+
+  app.post(
+    "/marketplace/sellers/:sellerUserId/reviews",
+    requireAuth,
+    async (request, response) => {
+      const sellerUserId = request.params.sellerUserId;
+      const returnTo = safeNextPath(request.body.returnTo || `/marketplace/sellers/${sellerUserId}`);
+      const rating = normalizeRating(request.body.rating, 0);
+      const comment = sanitizeMarketplaceText(request.body.comment, "");
+
+      if (!rating || !comment) {
+        setFlash(request, "error", "Rating and comment are required.");
+        response.redirect(returnTo);
+        return;
+      }
+
+      const result = await withWriteLock(async (data) => {
+        const seller = data.users.find((user) => user.id === sellerUserId);
+        if (!seller) {
+          return { error: "Seller account not found." };
+        }
+        if (seller.id === request.currentUser.id) {
+          return { error: "You cannot review your own seller profile." };
+        }
+
+        const existing = (data.marketplaceSellerReviews || []).find(
+          (review) =>
+            review.sellerUserId === sellerUserId &&
+            review.reviewerUserId === request.currentUser.id
+        );
+        if (existing) {
+          existing.rating = rating;
+          existing.comment = comment;
+          existing.updatedAt = new Date().toISOString();
+        } else {
+          data.marketplaceSellerReviews.push({
+            id: randomUUID(),
+            sellerUserId,
+            reviewerUserId: request.currentUser.id,
+            rating,
+            comment,
+            createdAt: new Date().toISOString()
+          });
+        }
+        return { ok: true, updated: Boolean(existing) };
+      });
+
+      if (result.error) {
+        setFlash(request, "error", result.error);
+      } else {
+        setFlash(
+          request,
+          "success",
+          result.updated ? "Seller review updated." : "Seller review submitted."
+        );
+      }
+      response.redirect(returnTo);
+    }
+  );
 
   app.post(
     "/marketplace/listings/:listingId/unlock-contact",
@@ -2386,27 +2650,62 @@ function createApp() {
           return { ok: true, alreadyUnlocked: true };
         }
 
-        if (buyer.walletBalance < contactUnlockFeeNaira) {
-          return {
-            error: `Insufficient wallet balance. Fund your wallet with at least ${formatNaira(
-              contactUnlockFeeNaira
-            )}.`
-          };
-        }
+        let usedPoints = false;
+        let earnedPoints = 0;
+        let unlockFee = contactUnlockFeeNaira;
 
-        const paymentId = randomUUID();
-        const walletResult = createWalletEntry(data, {
-          userId: buyer.id,
-          type: "contact_unlock",
-          direction: "debit",
-          amount: contactUnlockFeeNaira,
-          description: "Marketplace seller contact unlock fee",
-          reference: `UNLOCK-${listing.id.slice(0, 8)}-${Date.now()}`,
-          relatedListingId: listing.id,
-          relatedPaymentId: paymentId
-        });
-        if (walletResult.error) {
-          return { error: walletResult.error };
+        if (buyer.marketplacePoints >= 5) {
+          buyer.marketplacePoints -= 5;
+          usedPoints = true;
+          unlockFee = 0;
+        } else {
+          if (buyer.walletBalance < contactUnlockFeeNaira) {
+            return {
+              error: `Insufficient wallet balance. Fund your wallet with at least ${formatNaira(
+                contactUnlockFeeNaira
+              )} or earn 5 points to unlock for free.`
+            };
+          }
+
+          const paymentId = randomUUID();
+          const walletResult = createWalletEntry(data, {
+            userId: buyer.id,
+            type: "contact_unlock",
+            direction: "debit",
+            amount: contactUnlockFeeNaira,
+            description: "Marketplace seller contact unlock fee",
+            reference: `UNLOCK-${listing.id.slice(0, 8)}-${Date.now()}`,
+            relatedListingId: listing.id,
+            relatedPaymentId: paymentId
+          });
+          if (walletResult.error) {
+            return { error: walletResult.error };
+          }
+
+          buyer.marketplacePaidUnlockCount += 1;
+          if (buyer.marketplacePaidUnlockCount % 5 === 0) {
+            buyer.marketplacePoints += 5;
+            earnedPoints = 5;
+          }
+
+          data.payments.push({
+            id: paymentId,
+            bookingId: null,
+            hotelId: null,
+            userId: buyer.id,
+            listingId: listing.id,
+            transactionRef: `HUT-MKT-${Date.now()}`,
+            transactionType: "marketplace_contact_unlock",
+            paymentProvider: "wallet",
+            paymentExternalId: `WALLET-${buyer.id}`,
+            grossAmount: contactUnlockFeeNaira,
+            hotelPayout: 0,
+            platformEarning: contactUnlockFeeNaira,
+            commissionRate: 0,
+            hotelBankAccount: null,
+            platformBankAccount: data.platform.bankAccount,
+            createdAt: new Date().toISOString()
+          });
         }
 
         data.marketplaceUnlocks.push({
@@ -2414,36 +2713,57 @@ function createApp() {
           listingId: listing.id,
           buyerUserId: buyer.id,
           sellerUserId: listing.sellerUserId,
-          fee: contactUnlockFeeNaira,
+          fee: unlockFee,
+          unlockMethod: usedPoints ? "points" : "wallet",
+          pointsUsed: usedPoints ? 5 : 0,
           createdAt: new Date().toISOString()
         });
 
-        data.payments.push({
-          id: paymentId,
-          bookingId: null,
-          hotelId: null,
-          userId: buyer.id,
-          listingId: listing.id,
-          transactionRef: `HUT-MKT-${Date.now()}`,
-          transactionType: "marketplace_contact_unlock",
-          paymentProvider: "wallet",
-          paymentExternalId: `WALLET-${buyer.id}`,
-          grossAmount: contactUnlockFeeNaira,
-          hotelPayout: 0,
-          platformEarning: contactUnlockFeeNaira,
-          commissionRate: 0,
-          hotelBankAccount: null,
-          platformBankAccount: data.platform.bankAccount,
-          createdAt: new Date().toISOString()
-        });
+        if (usedPoints) {
+          data.payments.push({
+            id: randomUUID(),
+            bookingId: null,
+            hotelId: null,
+            userId: buyer.id,
+            listingId: listing.id,
+            transactionRef: `HUT-MKT-PTS-${Date.now()}`,
+            transactionType: "marketplace_contact_unlock_points",
+            paymentProvider: "points",
+            paymentExternalId: `POINTS-${buyer.id}`,
+            grossAmount: 0,
+            hotelPayout: 0,
+            platformEarning: 0,
+            commissionRate: 0,
+            hotelBankAccount: null,
+            platformBankAccount: data.platform.bankAccount,
+            createdAt: new Date().toISOString()
+          });
+        }
 
-        return { ok: true };
+        return {
+          ok: true,
+          usedPoints,
+          earnedPoints,
+          pointsBalance: buyer.marketplacePoints
+        };
       });
 
       if (result.error) {
         setFlash(request, "error", result.error);
       } else if (result.alreadyUnlocked) {
         setFlash(request, "success", "Contact already unlocked for this listing.");
+      } else if (result.usedPoints) {
+        setFlash(
+          request,
+          "success",
+          `Seller contact unlocked using 5 points. Remaining points: ${result.pointsBalance}.`
+        );
+      } else if (result.earnedPoints > 0) {
+        setFlash(
+          request,
+          "success",
+          `Seller contact unlocked successfully. You earned ${result.earnedPoints} marketplace points.`
+        );
       } else {
         setFlash(request, "success", "Seller contact unlocked successfully.");
       }
@@ -3071,6 +3391,7 @@ function createApp() {
       const bookingsWithReferences = bookings.map((booking) => {
         const payment = paymentByBookingId.get(booking.id);
         const referenceNumber =
+          booking.referenceNumber ||
           booking.paymentReference ||
           booking.paymentExternalId ||
           payment?.transactionRef ||

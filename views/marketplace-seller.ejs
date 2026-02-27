@@ -1,0 +1,116 @@
+<%- include("partials/header", { title: `${seller.name} Seller Profile` }) %>
+<%- include("partials/marketplace-masthead", {
+  categories,
+  searchQuery: "",
+  searchCategory: ""
+}) %>
+
+<section class="card marketplace-page-intro">
+  <h1><%= seller.name %> • Seller profile</h1>
+  <p class="muted">
+    Overall rating:
+    <strong><%= sellerRating.count ? `${sellerRating.average} / 5` : "No ratings yet" %></strong>
+    <% if (sellerRating.count) { %>
+      (<%= sellerRating.count %> review<%= sellerRating.count === 1 ? "" : "s" %>)
+    <% } %>
+  </p>
+</section>
+
+<section class="marketplace-ebay-layout marketplace-manage-layout">
+  <aside class="card marketplace-sticky-card">
+    <h3>Seller details</h3>
+    <p class="muted tiny">Name: <strong><%= seller.name %></strong></p>
+    <p class="muted tiny">
+      Phone:
+      <strong><%= String(seller.phone || "").replace(/.(?=.{4})/g, "*") %></strong>
+    </p>
+    <p class="muted tiny">Active listings: <strong><%= sellerListings.length %></strong></p>
+
+    <hr />
+
+    <h3>Leave seller review</h3>
+    <% if (!currentUser) { %>
+      <p class="muted tiny">
+        <a href="/auth/login?next=<%= encodeURIComponent(`/marketplace/sellers/${seller.id}`) %>">
+          Sign in
+        </a>
+        to leave a rating and comment.
+      </p>
+    <% } else if (currentUser.id === seller.id) { %>
+      <p class="muted tiny">You cannot review your own seller profile.</p>
+    <% } else { %>
+      <form class="grid-form compact" method="POST" action="/marketplace/sellers/<%= seller.id %>/reviews">
+        <input type="hidden" name="returnTo" value="/marketplace/sellers/<%= seller.id %>" />
+        <div>
+          <label for="sellerRatingInput">Rating</label>
+          <select id="sellerRatingInput" name="rating" required>
+            <option value="">Select rating</option>
+            <% [5, 4, 3, 2, 1].forEach((score) => { %>
+              <option value="<%= score %>" <%= userSellerReview && userSellerReview.rating === score ? "selected" : "" %>>
+                <%= score %> star<%= score === 1 ? "" : "s" %>
+              </option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="full">
+          <label for="sellerCommentInput">Comment</label>
+          <textarea id="sellerCommentInput" name="comment" rows="3" required><%= userSellerReview ? userSellerReview.comment : "" %></textarea>
+        </div>
+        <div class="full">
+          <button type="submit"><%= userSellerReview ? "Update review" : "Submit review" %></button>
+        </div>
+      </form>
+    <% } %>
+  </aside>
+
+  <section>
+    <article class="card">
+      <h3>Seller reviews</h3>
+      <% if (!sellerReviews.length) { %>
+        <p class="muted">No reviews yet for this seller.</p>
+      <% } %>
+      <div class="review-list">
+        <% sellerReviews.forEach((review) => { %>
+          <article class="review-card">
+            <p class="review-title">
+              <strong><%= review.reviewerName %></strong>
+              <span class="muted tiny">• <%= review.rating %> / 5</span>
+            </p>
+            <p class="muted tiny"><%= review.createdAt %></p>
+            <p><%= review.comment %></p>
+          </article>
+        <% }) %>
+      </div>
+    </article>
+
+    <article class="card">
+      <h3>Active listings from <%= seller.name %></h3>
+      <section class="marketplace-result-list">
+        <% if (!sellerListings.length) { %>
+          <p class="muted">No active listings from this seller right now.</p>
+        <% } %>
+        <% sellerListings.forEach((listing) => { %>
+          <article class="market-result-card">
+            <a class="market-result-media" href="/marketplace/listings/<%= listing.id %>">
+              <img src="<%= listing.primaryImage %>" alt="<%= listing.title %>" />
+            </a>
+            <div class="market-result-main">
+              <h3><a href="/marketplace/listings/<%= listing.id %>"><%= listing.title %></a></h3>
+              <p class="muted tiny"><%= listing.category %> • <%= listing.condition %></p>
+              <p class="muted tiny">
+                <%= listing.location || "Location not set" %>
+                <% if (listing.neighborhood) { %>• <%= listing.neighborhood %><% } %>
+              </p>
+            </div>
+            <div class="market-result-side">
+              <p class="market-price"><%= formatNaira(listing.price) %></p>
+              <a class="button-link small full-width" href="/marketplace/listings/<%= listing.id %>">View item</a>
+            </div>
+          </article>
+        <% }) %>
+      </section>
+    </article>
+  </section>
+</section>
+
+<%- include("partials/footer", { platform }) %>

@@ -60,3 +60,68 @@
     stream.close();
   });
 })();
+
+(function historyNavigationControls() {
+  const backButtons = document.querySelectorAll(".js-history-back");
+  const forwardButtons = document.querySelectorAll(".js-history-forward");
+  if (!backButtons.length && !forwardButtons.length) {
+    return;
+  }
+
+  backButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      window.history.back();
+    });
+  });
+  forwardButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      window.history.forward();
+    });
+  });
+})();
+
+(function rememberLoginCredentials() {
+  const forms = document.querySelectorAll('form[data-remember-form="login"]');
+  if (!forms.length) {
+    return;
+  }
+
+  const identifierKey = "hut.savedLoginEmail";
+  const passwordKey = "hut.savedLoginPassword";
+  const rememberFlagKey = "hut.rememberLoginEnabled";
+  const savedEmail = localStorage.getItem(identifierKey) || "";
+  const savedPassword = localStorage.getItem(passwordKey) || "";
+  const rememberEnabled = localStorage.getItem(rememberFlagKey) === "true";
+
+  forms.forEach((form) => {
+    const emailInput = form.querySelector('input[name="email"]');
+    const passwordInput = form.querySelector('input[name="password"]');
+    const rememberInput = form.querySelector("[data-remember-checkbox]");
+
+    if (rememberInput && rememberEnabled) {
+      rememberInput.checked = true;
+    }
+    if (emailInput && savedEmail) {
+      emailInput.value = savedEmail;
+    }
+    if (passwordInput && savedPassword && rememberEnabled) {
+      passwordInput.value = savedPassword;
+    }
+
+    form.addEventListener("submit", () => {
+      if (!emailInput || !passwordInput || !rememberInput) {
+        return;
+      }
+
+      if (rememberInput.checked) {
+        localStorage.setItem(identifierKey, emailInput.value || "");
+        localStorage.setItem(passwordKey, passwordInput.value || "");
+        localStorage.setItem(rememberFlagKey, "true");
+      } else {
+        localStorage.removeItem(identifierKey);
+        localStorage.removeItem(passwordKey);
+        localStorage.setItem(rememberFlagKey, "false");
+      }
+    });
+  });
+})();

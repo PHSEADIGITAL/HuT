@@ -1,6 +1,23 @@
 <%- include("partials/header", { title: "Bonny Island Hotels" }) %>
 
+<section class="card landing-switcher">
+  <div>
+    <p class="eyebrow">Choose your experience</p>
+    <h2>Start with Marketplace or Hotel Booking</h2>
+    <p class="muted tiny">
+      Pick where you want to go first, then use back/forward buttons to navigate quickly.
+    </p>
+  </div>
+  <div class="landing-switcher-actions">
+    <a class="button-link" href="/marketplace">Go to Marketplace</a>
+    <a class="ghost-link" href="#hotel-booking-search">Go to Hotel Booking</a>
+    <button type="button" class="ghost-btn js-history-back">Back</button>
+    <button type="button" class="ghost-btn js-history-forward">Forward</button>
+  </div>
+</section>
+
 <section class="booking-hero">
+  <div id="hotel-booking-search"></div>
   <div class="booking-hero-content">
     <p class="eyebrow">Hut Stays</p>
     <h1>Find your next stay in Bonny Island</h1>
