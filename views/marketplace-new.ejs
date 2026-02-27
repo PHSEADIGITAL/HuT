@@ -31,14 +31,18 @@
       </div>
       <div>
         <label for="category">Category</label>
-        <input id="category" name="category" placeholder="Electronics, Furniture..." required />
+        <select id="category" name="category" required>
+          <% categories.forEach((category) => { %>
+            <option value="<%= category %>"><%= category %></option>
+          <% }) %>
+        </select>
       </div>
       <div>
         <label for="condition">Condition</label>
         <select id="condition" name="condition" required>
-          <option value="Used">Used</option>
-          <option value="Like New">Like New</option>
-          <option value="Refurbished">Refurbished</option>
+          <% conditions.forEach((item) => { %>
+            <option value="<%= item %>"><%= item %></option>
+          <% }) %>
         </select>
       </div>
       <div>

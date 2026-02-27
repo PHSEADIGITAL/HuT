@@ -25,9 +25,9 @@
         <label for="condition">Condition</label>
         <select id="condition" name="condition">
           <option value="">All</option>
-          <option value="Used" <%= filters.condition === "Used" ? "selected" : "" %>>Used</option>
-          <option value="Like New" <%= filters.condition === "Like New" ? "selected" : "" %>>Like New</option>
-          <option value="Refurbished" <%= filters.condition === "Refurbished" ? "selected" : "" %>>Refurbished</option>
+          <% conditions.forEach((item) => { %>
+            <option value="<%= item %>" <%= filters.condition === item ? "selected" : "" %>><%= item %></option>
+          <% }) %>
         </select>
       </div>
       <div>

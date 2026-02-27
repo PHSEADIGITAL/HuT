@@ -584,6 +584,35 @@ body {
   margin-top: 1rem;
 }
 
+.platform-tabs-wrap {
+  background: #ffffff;
+  border-bottom: 1px solid #d8e2f2;
+}
+
+.platform-tabs {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.55rem 0;
+  overflow-x: auto;
+}
+
+.platform-tab {
+  text-decoration: none;
+  color: #1f335d;
+  border: 1px solid #d8e2f2;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: #fff;
+}
+
+.platform-tab.active {
+  background: #e8f1ff;
+  border-color: #96b8ee;
+  color: #0d3f86;
+}
+
 .booking-hero {
   margin-top: 1rem;
   margin-bottom: 1rem;

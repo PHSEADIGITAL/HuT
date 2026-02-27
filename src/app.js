@@ -243,6 +243,20 @@ const marketplaceUploadDir = path.join(
 );
 const marketplaceFallbackImage =
   "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1200&q=80";
+const marketplaceCategories = [
+  "Electronics",
+  "Furniture",
+  "Fashion",
+  "Mobile Phones",
+  "Computers",
+  "Appliances",
+  "Home & Kitchen",
+  "Kids",
+  "Sports",
+  "Vehicles",
+  "Other"
+];
+const marketplaceConditions = ["Used", "Like New", "Refurbished"];
 
 fs.mkdirSync(marketplaceUploadDir, { recursive: true });
 
@@ -287,6 +301,16 @@ function maskPhone(phone) {
 
 function sanitizeMarketplaceText(value, fallback = "") {
   return String(value || fallback).trim();
+}
+
+function normalizeMarketplaceCategory(value) {
+  const input = sanitizeMarketplaceText(value, "Other");
+  return marketplaceCategories.includes(input) ? input : "Other";
+}
+
+function normalizeMarketplaceCondition(value) {
+  const input = sanitizeMarketplaceText(value, "Used");
+  return marketplaceConditions.includes(input) ? input : "Used";
 }
 
 function ensureUserWallet(user) {
@@ -526,6 +550,7 @@ function createApp() {
 
       request.currentUser = user;
       response.locals.currentUser = user;
+      response.locals.currentPath = request.path || "/";
       response.locals.platform = snapshot.platform;
       response.locals.flash = request.session.flash || null;
       delete request.session.flash;
@@ -1359,8 +1384,10 @@ function createApp() {
   app.get("/marketplace", async (request, response) => {
     const snapshot = await getSnapshot();
     const query = sanitizeMarketplaceText(request.query.q, "");
-    const category = sanitizeMarketplaceText(request.query.category, "");
-    const condition = sanitizeMarketplaceText(request.query.condition, "");
+    const rawCategory = sanitizeMarketplaceText(request.query.category, "");
+    const rawCondition = sanitizeMarketplaceText(request.query.condition, "");
+    const category = marketplaceCategories.includes(rawCategory) ? rawCategory : "";
+    const condition = marketplaceConditions.includes(rawCondition) ? rawCondition : "";
     const minPrice = Math.max(0, toNumber(request.query.minPrice, 0));
     const maxPriceRaw = toNumber(request.query.maxPrice, 0);
     const maxPrice = maxPriceRaw > 0 ? maxPriceRaw : null;
@@ -1402,10 +1429,6 @@ function createApp() {
       listings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }
 
-    const categories = [...new Set(snapshot.marketplaceListings.map((item) => item.category))].filter(
-      Boolean
-    );
-
     let walletBalance = null;
     if (request.currentUser) {
       const currentUser = snapshot.users.find((user) => user.id === request.currentUser.id);
@@ -1417,7 +1440,8 @@ function createApp() {
 
     response.render("marketplace-index", {
       listings,
-      categories,
+      categories: marketplaceCategories,
+      conditions: marketplaceConditions,
       filters: {
         q: query,
         category,
@@ -1437,6 +1461,8 @@ function createApp() {
     const limitState = canCreateMarketplaceListing(snapshot, request.currentUser.id);
     response.render("marketplace-new", {
       limitState,
+      categories: marketplaceCategories,
+      conditions: marketplaceConditions,
       platform: snapshot.platform
     });
   });
@@ -1448,8 +1474,8 @@ function createApp() {
     async (request, response) => {
       const title = sanitizeMarketplaceText(request.body.title);
       const description = sanitizeMarketplaceText(request.body.description);
-      const category = sanitizeMarketplaceText(request.body.category, "General");
-      const condition = sanitizeMarketplaceText(request.body.condition, "Used");
+      const category = normalizeMarketplaceCategory(request.body.category);
+      const condition = normalizeMarketplaceCondition(request.body.condition);
       const price = Math.max(0, Math.round(toNumber(request.body.price, 0)));
       const requestedImageUrls = normalizeImageArray(request.body.imageUrls);
       const uploadedImageUrls = (request.files || []).map(
@@ -2112,6 +2138,19 @@ function createApp() {
   app.use((error, request, response, next) => {
     if (response.headersSent) {
       next(error);
+      return;
+    }
+
+    if (
+      request.path === "/marketplace/listings" &&
+      (error.name === "MulterError" || /image uploads/i.test(error.message || ""))
+    ) {
+      setFlash(
+        request,
+        "error",
+        `Listing image upload failed: ${error.message}. Use up to 4 images and max 5MB each.`
+      );
+      response.redirect("/marketplace/new");
       return;
     }
 
