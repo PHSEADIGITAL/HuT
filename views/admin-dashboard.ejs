@@ -1,0 +1,201 @@
+<%- include("partials/header", { title: `${hotel.name} Dashboard` }) %>
+
+<section class="hero small">
+  <h1><%= hotel.name %> - Admin Dashboard</h1>
+  <p class="muted"><%= hotel.location %></p>
+</section>
+
+<section class="stats-grid">
+  <article class="card">
+    <h3>Gross Booking Sales</h3>
+    <p class="metric"><%= formatNaira(grossSales) %></p>
+  </article>
+  <article class="card">
+    <h3>Hotel Receivables</h3>
+    <p class="metric"><%= formatNaira(hotelReceivables) %></p>
+  </article>
+  <article class="card">
+    <h3>Platform Commission</h3>
+    <p class="metric"><%= formatNaira(platformRevenue) %></p>
+  </article>
+  <article class="card">
+    <h3>Commission Rate</h3>
+    <p class="metric"><%= formatPercent(hotel.commissionRate) %></p>
+  </article>
+</section>
+
+<section class="card">
+  <h2>Premium listing subscription</h2>
+  <p>
+    Status:
+    <strong><%= hotel.premiumListingActive ? "Active" : "Inactive" %></strong>
+  </p>
+  <p>Expires: <strong><%= hotel.premiumListingExpiresAt || "-" %></strong></p>
+  <form method="POST" action="/admin/hotels/<%= hotel.id %>/subscription/renew">
+    <button type="submit">Renew +30 days (<%= formatNaira(platform.premiumSubscriptionMonthlyFee) %>)</button>
+  </form>
+</section>
+
+<section
+  class="card"
+  id="availability-root"
+  data-hotel-id="<%= hotel.id %>"
+  data-check-in="<%= checkInDate %>"
+  data-check-out="<%= checkOutDate %>"
+>
+  <h2>Real-time room availability</h2>
+  <form class="grid-form compact" method="GET" action="/admin/hotels/<%= hotel.id %>/dashboard">
+    <div>
+      <label for="checkInDate">Check-in</label>
+      <input id="checkInDate" type="date" name="checkInDate" value="<%= checkInDate %>" required />
+    </div>
+    <div>
+      <label for="checkOutDate">Check-out</label>
+      <input id="checkOutDate" type="date" name="checkOutDate" value="<%= checkOutDate %>" required />
+    </div>
+    <div class="align-end">
+      <button type="submit">Refresh</button>
+    </div>
+  </form>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Room</th>
+          <th>Total Units</th>
+          <th>Booked</th>
+          <th>Available</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% availability.forEach((room) => { %>
+          <tr data-room-id="<%= room.roomId %>">
+            <td><%= room.category %></td>
+            <td><%= room.totalUnits %></td>
+            <td class="booked-value"><%= room.activeBookings %></td>
+            <td class="availability-value <%= room.soldOut ? 'danger' : 'success' %>">
+              <%= room.availableUnits %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Bookings (with days booked + emergency contact)</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Created</th>
+          <th>Guest</th>
+          <th>Stay</th>
+          <th>Days Booked</th>
+          <th>Emergency Contact</th>
+          <th>Pickup</th>
+          <th>Total Paid</th>
+          <th>Fraud</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!bookings.length) { %>
+          <tr>
+            <td colspan="9" class="muted">No bookings yet.</td>
+          </tr>
+        <% } %>
+        <% bookings.forEach((booking) => { %>
+          <tr>
+            <td><%= booking.createdAt %></td>
+            <td>
+              <strong><%= booking.customerName %></strong><br />
+              <span class="muted"><%= booking.email %></span>
+            </td>
+            <td><%= booking.checkInDate %> to <%= booking.checkOutDate %></td>
+            <td><%= booking.nights %></td>
+            <td><%= booking.emergencyContactName %><br /><span class="muted"><%= booking.emergencyContactPhone %></span></td>
+            <td><%= booking.pickupRequested ? "Yes" : "No" %></td>
+            <td><%= formatNaira(booking.pricing.totalPaid) %></td>
+            <td>
+              <span class="badge <%= booking.fraudScore >= 40 ? 'warn' : 'ok' %>">
+                <%= booking.fraudScore %>
+              </span>
+            </td>
+            <td><%= booking.status %> / <%= booking.paymentStatus %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Payment ledger</h2>
+  <p class="muted">Payments are split into hotel payout and Hut commission account.</p>
+  <p><strong>Hotel Bank Account:</strong> <%= hotel.bankName %> - <%= hotel.bankAccount %></p>
+  <p><strong>Hut Platform Account:</strong> <%= platform.bankAccount %></p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Type</th>
+          <th>Reference</th>
+          <th>Gross</th>
+          <th>Hotel Payout</th>
+          <th>Platform Earning</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!payments.length) { %>
+          <tr>
+            <td colspan="6" class="muted">No payment records yet.</td>
+          </tr>
+        <% } %>
+        <% payments.forEach((payment) => { %>
+          <tr>
+            <td><%= payment.createdAt %></td>
+            <td><%= payment.transactionType %></td>
+            <td><%= payment.transactionRef %></td>
+            <td><%= formatNaira(payment.grossAmount) %></td>
+            <td><%= formatNaira(payment.hotelPayout) %></td>
+            <td><%= formatNaira(payment.platformEarning) %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Smart Pricing Insights (last 30 days)</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Room Category</th>
+          <th>Base Price</th>
+          <th>Occupancy</th>
+          <th>Booked Nights</th>
+          <th>Recommendation</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% pricingInsights.forEach((insight) => { %>
+          <tr>
+            <td><%= insight.category %></td>
+            <td><%= formatNaira(insight.basePrice) %></td>
+            <td><%= Math.round(insight.occupancyRate * 100) %>%</td>
+            <td><%= insight.bookedNights %></td>
+            <td><%= insight.recommendation %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<%- include("partials/footer", { platform }) %>

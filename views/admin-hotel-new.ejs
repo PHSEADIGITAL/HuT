@@ -1,0 +1,69 @@
+<%- include("partials/header", { title: "Onboard Hotel" }) %>
+
+<section class="hero small">
+  <h1>Hotel Onboarding</h1>
+  <p>Create a hotel profile, choose cancellation policy, and optionally activate premium listing.</p>
+</section>
+
+<section class="card">
+  <form class="grid-form" method="POST" action="/admin/hotels">
+    <div>
+      <label for="name">Hotel name</label>
+      <input id="name" name="name" type="text" required />
+    </div>
+    <div>
+      <label for="location">Location</label>
+      <input id="location" name="location" type="text" required />
+    </div>
+    <div class="full">
+      <label for="description">Description</label>
+      <textarea id="description" name="description" rows="3" required></textarea>
+    </div>
+    <div>
+      <label for="bankName">Bank name</label>
+      <input id="bankName" name="bankName" type="text" required />
+    </div>
+    <div>
+      <label for="bankAccount">Bank account</label>
+      <input id="bankAccount" name="bankAccount" type="text" required />
+    </div>
+    <div>
+      <label for="commissionRate">Commission rate (%)</label>
+      <input id="commissionRate" name="commissionRate" type="number" min="5" max="30" value="12" required />
+    </div>
+    <div>
+      <label for="pickupFee">Pickup fee (NGN)</label>
+      <input id="pickupFee" name="pickupFee" type="number" min="0" value="7000" />
+    </div>
+    <div>
+      <label for="cancellationPolicy">Cancellation policy</label>
+      <select id="cancellationPolicy" name="cancellationPolicy">
+        <option value="flexible" selected>Flexible (recommended)</option>
+      </select>
+    </div>
+
+    <div class="full">
+      <label class="checkbox">
+        <input type="checkbox" name="premiumListingActive" />
+        Activate premium listing subscription now
+        (<%= formatNaira(platform.premiumSubscriptionMonthlyFee) %>/month)
+      </label>
+    </div>
+
+    <div class="full">
+      <button type="submit">Create Hotel</button>
+    </div>
+  </form>
+</section>
+
+<section class="card ideas">
+  <h3>Flexible policy (selected during onboarding)</h3>
+  <ul>
+    <li>100% refund if cancelled 48+ hrs before check-in.</li>
+    <li>50% refund if cancelled 24-48 hrs before check-in.</li>
+    <li>No refund if cancelled within 24 hrs.</li>
+    <li>Pickup fully refundable only if cancelled 24+ hrs before.</li>
+  </ul>
+</section>
+
+<%- include("partials/footer", { platform }) %>

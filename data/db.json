@@ -1,0 +1,109 @@
+{
+  "platform": {
+    "name": "Hut!",
+    "bankAccount": "HUT-PLATFORM-00112233",
+    "defaultCommissionRate": 0.12,
+    "premiumSubscriptionMonthlyFee": 75000,
+    "whatsappSupportNumber": "2348030001122"
+  },
+  "hotels": [
+    {
+      "id": "hotel-seaside-grand",
+      "name": "Seaside Grand Hotel",
+      "description": "Premium ocean-view hotel in Bonny Island with conference and business facilities.",
+      "location": "Finima Road, Bonny Island",
+      "bankAccount": "0445548871",
+      "bankName": "Coral Trust Bank",
+      "cancellationPolicy": "flexible",
+      "commissionRate": 0.12,
+      "premiumListingActive": true,
+      "premiumListingExpiresAt": "2026-12-31T23:59:59.000Z",
+      "pickupFee": 9000,
+      "createdAt": "2026-02-01T10:15:00.000Z"
+    },
+    {
+      "id": "hotel-bonny-suites",
+      "name": "Bonny Suites & Towers",
+      "description": "Comfort-focused hotel with strong family and corporate room options.",
+      "location": "King Perekule Street, Bonny Island",
+      "bankAccount": "1107782344",
+      "bankName": "Delta National Bank",
+      "cancellationPolicy": "flexible",
+      "commissionRate": 0.1,
+      "premiumListingActive": false,
+      "premiumListingExpiresAt": null,
+      "pickupFee": 7000,
+      "createdAt": "2026-02-02T08:20:00.000Z"
+    },
+    {
+      "id": "hotel-creekside-lodge",
+      "name": "Creekside Lodge",
+      "description": "Budget-friendly waterfront lodge suitable for short stays.",
+      "location": "New Layout, Bonny Island",
+      "bankAccount": "7773341120",
+      "bankName": "Island Union Bank",
+      "cancellationPolicy": "flexible",
+      "commissionRate": 0.09,
+      "premiumListingActive": false,
+      "premiumListingExpiresAt": null,
+      "pickupFee": 5000,
+      "createdAt": "2026-02-03T09:30:00.000Z"
+    }
+  ],
+  "rooms": [
+    {
+      "id": "room-seaside-standard",
+      "hotelId": "hotel-seaside-grand",
+      "category": "Standard",
+      "pricePerNight": 55000,
+      "totalUnits": 8
+    },
+    {
+      "id": "room-seaside-deluxe",
+      "hotelId": "hotel-seaside-grand",
+      "category": "Deluxe",
+      "pricePerNight": 85000,
+      "totalUnits": 6
+    },
+    {
+      "id": "room-seaside-executive",
+      "hotelId": "hotel-seaside-grand",
+      "category": "Executive Suite",
+      "pricePerNight": 135000,
+      "totalUnits": 3
+    },
+    {
+      "id": "room-bonny-standard",
+      "hotelId": "hotel-bonny-suites",
+      "category": "Standard",
+      "pricePerNight": 42000,
+      "totalUnits": 10
+    },
+    {
+      "id": "room-bonny-family",
+      "hotelId": "hotel-bonny-suites",
+      "category": "Family Deluxe",
+      "pricePerNight": 68000,
+      "totalUnits": 5
+    },
+    {
+      "id": "room-creek-classic",
+      "hotelId": "hotel-creekside-lodge",
+      "category": "Classic",
+      "pricePerNight": 30000,
+      "totalUnits": 12
+    },
+    {
+      "id": "room-creek-premium",
+      "hotelId": "hotel-creekside-lodge",
+      "category": "Premium",
+      "pricePerNight": 47000,
+      "totalUnits": 4
+    }
+  ],
+  "bookings": [],
+  "payments": [],
+  "notifications": [],
+  "premiumSubscriptions": [],
+  "fraudEvents": []
+}

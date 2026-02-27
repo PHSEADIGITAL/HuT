@@ -1,0 +1,169 @@
+<%- include("partials/header", { title: hotel.name }) %>
+
+<section class="hero small">
+  <h1><%= hotel.name %></h1>
+  <p class="muted"><%= hotel.location %></p>
+  <p><%= hotel.description %></p>
+</section>
+
+<section
+  class="card"
+  id="availability-root"
+  data-hotel-id="<%= hotel.id %>"
+  data-check-in="<%= checkInDate %>"
+  data-check-out="<%= checkOutDate %>"
+>
+  <h2>Room categories & real-time availability</h2>
+
+  <form class="grid-form compact" method="GET" action="/hotels/<%= hotel.id %>">
+    <div>
+      <label for="checkInDate">Check-in</label>
+      <input id="checkInDate" type="date" name="checkInDate" value="<%= checkInDate %>" required />
+    </div>
+    <div>
+      <label for="checkOutDate">Check-out</label>
+      <input
+        id="checkOutDate"
+        type="date"
+        name="checkOutDate"
+        value="<%= checkOutDate %>"
+        required
+      />
+    </div>
+    <div class="align-end">
+      <button type="submit">Refresh</button>
+    </div>
+  </form>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th>Price / Night</th>
+          <th>Total Units</th>
+          <th>Available Now</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% rooms.forEach((room) => { %>
+          <tr data-room-id="<%= room.id %>">
+            <td><%= room.category %></td>
+            <td><%= formatNaira(room.pricePerNight) %></td>
+            <td><%= room.totalUnits %></td>
+            <td class="availability-value <%= room.availability.soldOut ? 'danger' : 'success' %>">
+              <%= room.availability.availableUnits %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <p class="muted tiny">Auto-updates whenever a booking/cancellation occurs.</p>
+</section>
+
+<section class="card">
+  <h2>Book this hotel</h2>
+  <form class="grid-form" method="POST" action="/bookings">
+    <input type="hidden" name="hotelId" value="<%= hotel.id %>" />
+
+    <div>
+      <label for="roomId">Room category</label>
+      <select id="roomId" name="roomId" required>
+        <% rooms.forEach((room) => { %>
+          <option value="<%= room.id %>">
+            <%= room.category %> - <%= formatNaira(room.pricePerNight) %>/night
+          </option>
+        <% }) %>
+      </select>
+    </div>
+
+    <div>
+      <label for="guests">Guests</label>
+      <input id="guests" name="guests" type="number" min="1" value="1" required />
+    </div>
+
+    <div>
+      <label for="checkInBook">Check-in</label>
+      <input
+        id="checkInBook"
+        name="checkInDate"
+        type="date"
+        value="<%= checkInDate %>"
+        required
+      />
+    </div>
+
+    <div>
+      <label for="checkOutBook">Check-out</label>
+      <input
+        id="checkOutBook"
+        name="checkOutDate"
+        type="date"
+        value="<%= checkOutDate %>"
+        required
+      />
+    </div>
+
+    <div>
+      <label for="customerName">Full name</label>
+      <input id="customerName" name="customerName" type="text" required />
+    </div>
+
+    <div>
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" required />
+    </div>
+
+    <div>
+      <label for="phone">Phone</label>
+      <input id="phone" name="phone" type="tel" placeholder="+234..." required />
+    </div>
+
+    <div>
+      <label for="emergencyContactName">Emergency contact name</label>
+      <input id="emergencyContactName" name="emergencyContactName" type="text" required />
+    </div>
+
+    <div>
+      <label for="emergencyContactPhone">Emergency contact phone</label>
+      <input id="emergencyContactPhone" name="emergencyContactPhone" type="tel" required />
+    </div>
+
+    <div class="full">
+      <label class="checkbox">
+        <input type="checkbox" name="pickupRequested" />
+        Add pickup service (<%= formatNaira(hotel.pickupFee) %>) - refundable only if cancellation is 24+ hours before check-in.
+      </label>
+    </div>
+
+    <div class="full">
+      <label for="specialRequest">Special requests (optional)</label>
+      <textarea id="specialRequest" name="specialRequest" rows="3"></textarea>
+    </div>
+
+    <div class="full card subtle">
+      <p>
+        <strong>Secure payment note:</strong> total includes room amount + service charge
+        (<%= formatPercent(hotel.commissionRate) %> commission model).
+      </p>
+      <p class="muted">Fraud protection is active to secure guests and hotels.</p>
+    </div>
+
+    <div class="full">
+      <button type="submit">Book and Pay Online</button>
+    </div>
+  </form>
+</section>
+
+<section class="card ideas">
+  <h3>Cancellation policy: <%= hotel.cancellationPolicy %></h3>
+  <ul>
+    <li>100% refund if cancelled 48+ hrs before check-in.</li>
+    <li>50% refund if cancelled 24-48 hrs before check-in.</li>
+    <li>No refund if cancelled under 24 hrs.</li>
+    <li>Pickup is fully refundable only if cancelled 24+ hrs before.</li>
+  </ul>
+</section>
+
+<%- include("partials/footer", { platform }) %>
