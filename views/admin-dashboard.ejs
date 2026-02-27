@@ -265,11 +265,39 @@
 
 <section class="card">
   <h2>Bookings (with days booked + emergency contact)</h2>
+  <form class="grid-form compact" method="GET" action="/admin/hotels/<%= hotel.id %>/dashboard">
+    <input type="hidden" name="checkInDate" value="<%= checkInDate %>" />
+    <input type="hidden" name="checkOutDate" value="<%= checkOutDate %>" />
+    <div>
+      <label for="bookingReference">Booking reference lookup</label>
+      <input
+        id="bookingReference"
+        name="bookingReference"
+        type="text"
+        value="<%= bookingReference || '' %>"
+        placeholder="Booking ID or transaction reference"
+      />
+    </div>
+    <div class="align-end">
+      <button type="submit">Search booking</button>
+    </div>
+    <% if (bookingReference) { %>
+      <div class="align-end">
+        <a
+          class="ghost-link"
+          href="/admin/hotels/<%= hotel.id %>/dashboard?checkInDate=<%= checkInDate %>&checkOutDate=<%= checkOutDate %>"
+        >
+          Clear search
+        </a>
+      </div>
+    <% } %>
+  </form>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
           <th>Created</th>
+          <th>Reference</th>
           <th>Guest</th>
           <th>Stay</th>
           <th>Days Booked</th>
@@ -283,12 +311,15 @@
       <tbody>
         <% if (!bookings.length) { %>
           <tr>
-            <td colspan="9" class="muted">No bookings yet.</td>
+            <td colspan="10" class="muted">
+              <%= bookingReference ? "No bookings matched that reference." : "No bookings yet." %>
+            </td>
           </tr>
         <% } %>
         <% bookings.forEach((booking) => { %>
           <tr>
             <td><%= booking.createdAt %></td>
+            <td><%= booking.referenceNumber %></td>
             <td>
               <strong><%= booking.customerName %></strong><br />
               <span class="muted"><%= booking.email %></span>

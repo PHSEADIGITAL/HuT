@@ -93,6 +93,60 @@ test("hotel admin can access assigned dashboard", async () => {
   assert.match(walletPage.text, /Wallet top-up is disabled for hotel admin accounts/);
 });
 
+test("hotel admin can lookup booking by reference number", async () => {
+  const app = createApp();
+  const customer = supertest.agent(app);
+
+  await customer
+    .post("/auth/login")
+    .type("form")
+    .send({
+      email: "customer@hut.app",
+      password: "Customer@123",
+      next: "/"
+    })
+    .expect(302);
+
+  const bookingResponse = await customer
+    .post("/bookings")
+    .type("form")
+    .send({
+      hotelId: "hotel-seaside-grand",
+      roomId: "room-seaside-standard",
+      checkInDate: "2026-04-10",
+      checkOutDate: "2026-04-12",
+      guests: "1",
+      emergencyContactName: "Lookup Contact",
+      emergencyContactPhone: "+2348039982222"
+    })
+    .expect(302);
+
+  const bookingMatch = bookingResponse.headers.location.match(/\/bookings\/([^/]+)\//);
+  assert.ok(bookingMatch);
+  const bookingId = bookingMatch[1];
+
+  const admin = supertest.agent(app);
+  await admin
+    .post("/auth/login")
+    .type("form")
+    .send({
+      email: "admin@seaside.hut",
+      password: "Admin@123",
+      next: "/admin"
+    })
+    .expect(302);
+
+  const searchResult = await admin
+    .get(`/admin/hotels/hotel-seaside-grand/dashboard?bookingReference=${encodeURIComponent(bookingId)}`)
+    .expect(200);
+  assert.doesNotMatch(searchResult.text, /No bookings matched that reference/);
+
+  const missingResult = await admin
+    .get("/admin/hotels/hotel-seaside-grand/dashboard?bookingReference=UNKNOWN-REF-000")
+    .expect(200);
+  assert.match(missingResult.text, /No bookings matched that reference/);
+});
+
 test("marketplace listing limit, wallet topup and contact unlock flow", async () => {
   const app = createApp();
   const seller = supertest.agent(app);
@@ -122,6 +176,8 @@ test("marketplace listing limit, wallet topup and contact unlock flow", async ()
         description: "Test listing for monthly cap validation",
         category: "Electronics",
         condition: "Used",
+        location: "Bonny Island",
+        neighborhood: "Sandfield",
         price: "25000"
       })
       .expect(302);

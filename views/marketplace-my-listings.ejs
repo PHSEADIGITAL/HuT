@@ -60,6 +60,10 @@
         <div class="market-result-main">
           <h3><a href="/marketplace/listings/<%= listing.id %>"><%= listing.title %></a></h3>
           <p class="muted tiny"><%= listing.category %> • <%= listing.condition %></p>
+          <p class="muted tiny">
+            <%= listing.location || "Location not set" %>
+            <% if (listing.neighborhood) { %>• <%= listing.neighborhood %><% } %>
+          </p>
           <p class="muted tiny">Status: <strong><%= listing.status %></strong></p>
         </div>
         <div class="market-result-side">

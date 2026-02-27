@@ -2,7 +2,9 @@
 <%- include("partials/marketplace-masthead", {
   categories,
   searchQuery: filters.q,
-  searchCategory: filters.category
+  searchCategory: filters.category,
+  searchLocation: filters.location,
+  searchNeighborhood: filters.neighborhood
 }) %>
 
 <section class="marketplace-ebay-layout">
@@ -27,6 +29,24 @@
           <option value="">All conditions</option>
           <% conditions.forEach((item) => { %>
             <option value="<%= item %>" <%= filters.condition === item ? "selected" : "" %>><%= item %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div class="marketplace-filter-field">
+        <label for="location">Location</label>
+        <select id="location" name="location">
+          <option value="">All locations</option>
+          <% locationOptions.forEach((item) => { %>
+            <option value="<%= item %>" <%= filters.location === item ? "selected" : "" %>><%= item %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div class="marketplace-filter-field">
+        <label for="neighborhood">Neighborhood</label>
+        <select id="neighborhood" name="neighborhood">
+          <option value="">All neighborhoods</option>
+          <% neighborhoodOptions.forEach((item) => { %>
+            <option value="<%= item %>" <%= filters.neighborhood === item ? "selected" : "" %>><%= item %></option>
           <% }) %>
         </select>
       </div>
@@ -142,6 +162,10 @@
           <div class="market-result-main">
             <h3><a href="/marketplace/listings/<%= listing.id %>"><%= listing.title %></a></h3>
             <p class="muted tiny"><%= listing.category %> • <%= listing.condition %></p>
+            <p class="muted tiny">
+              <%= listing.location || "Location not set" %>
+              <% if (listing.neighborhood) { %>• <%= listing.neighborhood %><% } %>
+            </p>
             <p class="muted tiny">Seller: <%= listing.sellerName %></p>
             <p class="muted tiny">
               Contact unlock fee: <%= formatNaira(contactUnlockFeeNaira) %> • Bonny Island pickup
@@ -156,5 +180,38 @@
     </section>
   </section>
 </section>
+
+<script>
+  (function attachMarketplaceNeighborhoodFilter() {
+    const locationSelect = document.getElementById("location");
+    const neighborhoodSelect = document.getElementById("neighborhood");
+    const locationMap = <%- JSON.stringify(locationNeighborhoods || {}) %>;
+    if (!locationSelect || !neighborhoodSelect || !locationMap) {
+      return;
+    }
+
+    const currentNeighborhood = neighborhoodSelect.value;
+    function rebuildNeighborhoodOptions() {
+      const selectedLocation = locationSelect.value;
+      const options = selectedLocation
+        ? (locationMap[selectedLocation] || [])
+        : Object.values(locationMap).flat();
+      const unique = Array.from(new Set(options));
+      const previousValue = neighborhoodSelect.value || currentNeighborhood || "";
+      neighborhoodSelect.innerHTML = '<option value="">All neighborhoods</option>';
+      unique.forEach((item) => {
+        const option = document.createElement("option");
+        option.value = item;
+        option.textContent = item;
+        if (item === previousValue) {
+          option.selected = true;
+        }
+        neighborhoodSelect.appendChild(option);
+      });
+    }
+
+    locationSelect.addEventListener("change", rebuildNeighborhoodOptions);
+  })();
+</script>
 
 <%- include("partials/footer", { platform }) %>

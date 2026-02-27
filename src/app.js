@@ -340,6 +340,57 @@ const marketplaceCategories = [
   "Other"
 ];
 const marketplaceConditions = ["Used", "Like New", "Refurbished"];
+const marketplaceLocationNeighborhoods = {
+  "Bonny Island": [
+    "Sandfield",
+    "Iwoama",
+    "Orosikiri",
+    "Aganya",
+    "Ayambo",
+    "Akiama",
+    "New-Road",
+    "Simidia",
+    "Abalamabie",
+    "Water-Well",
+    "Wilbros-Road",
+    "Berger-Road",
+    "Mission-Road",
+    "Cable-Road",
+    "Macauley",
+    "Gana-Woman",
+    "Ama-Omu",
+    "Shell-Gate",
+    "Finima",
+    "LNG-Round-About",
+    "Navy-Base",
+    "Cocoanut-Estate",
+    "Ukpo-Avenue",
+    "Workers-Camp",
+    "SDP",
+    "New-Jerusalem",
+    "Beach",
+    "IT-Williams"
+  ],
+  "Port-Harcourt": [
+    "Diobu",
+    "Town",
+    "Mile-1",
+    "Mile-3",
+    "Old-GRA",
+    "Rumoula",
+    "Garrison",
+    "Stadium-Road",
+    "Elekahia",
+    "Rumoumasi",
+    "Abali-Park",
+    "1st-Artilery",
+    "2nd-Artilery"
+  ]
+};
+const marketplaceLocationOptions = Object.keys(marketplaceLocationNeighborhoods);
+const allMarketplaceNeighborhoodOptions = Array.from(
+  new Set(Object.values(marketplaceLocationNeighborhoods).flat())
+);
 const marketplaceCategoryThumbnailMap = {
   "All categories":
     "https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=900&q=80",
@@ -419,6 +470,8 @@ function buildMarketplaceFilterHref({
   q = "",
   category = "",
   condition = "",
+  location = "",
+  neighborhood = "",
   minPrice = 0,
   maxPrice = null,
   sort = "newest"
@@ -432,6 +485,12 @@ function buildMarketplaceFilterHref({
   }
   if (condition) {
     params.set("condition", condition);
+  }
+  if (location) {
+    params.set("location", location);
+  }
+  if (neighborhood) {
+    params.set("neighborhood", neighborhood);
   }
   if (Number.isFinite(minPrice) && minPrice > 0) {
     params.set("minPrice", String(minPrice));
@@ -469,6 +528,29 @@ function normalizeMarketplaceCategory(value) {
 function normalizeMarketplaceCondition(value) {
   const input = sanitizeMarketplaceText(value, "Used");
   return marketplaceConditions.includes(input) ? input : "Used";
+}
+
+function normalizeMarketplaceLocation(value) {
+  const input = sanitizeMarketplaceText(value, "");
+  return marketplaceLocationOptions.includes(input) ? input : "";
+}
+
+function normalizeMarketplaceNeighborhood(value, location = "") {
+  const input = sanitizeMarketplaceText(value, "");
+  if (!input) {
+    return "";
+  }
+  if (location && Array.isArray(marketplaceLocationNeighborhoods[location])) {
+    return marketplaceLocationNeighborhoods[location].includes(input) ? input : "";
+  }
+  return allMarketplaceNeighborhoodOptions.includes(input) ? input : "";
+}
+
+function getNeighborhoodOptionsForLocation(location = "") {
+  if (location && Array.isArray(marketplaceLocationNeighborhoods[location])) {
+    return marketplaceLocationNeighborhoods[location];
+  }
+  return allMarketplaceNeighborhoodOptions;
 }
 
 function ensureUserWallet(user) {
@@ -580,11 +662,15 @@ function listingPrimaryImage(listing) {
 
 function enrichMarketplaceListing(data, listing) {
   const seller = data.users.find((user) => user.id === listing.sellerUserId);
+  const location = normalizeMarketplaceLocation(listing.location);
+  const neighborhood = normalizeMarketplaceNeighborhood(listing.neighborhood, location);
   return {
     ...listing,
     primaryImage: listingPrimaryImage(listing),
     sellerName: seller ? seller.name : "Unknown seller",
-    sellerPhoneMasked: seller ? maskPhone(seller.phone) : "Hidden"
+    sellerPhoneMasked: seller ? maskPhone(seller.phone) : "Hidden",
+    location,
+    neighborhood
   };
 }
 
@@ -1798,8 +1884,12 @@ function createApp() {
     const query = sanitizeMarketplaceText(request.query.q, "");
     const rawCategory = sanitizeMarketplaceText(request.query.category, "");
     const rawCondition = sanitizeMarketplaceText(request.query.condition, "");
+    const rawLocation = sanitizeMarketplaceText(request.query.location, "");
+    const rawNeighborhood = sanitizeMarketplaceText(request.query.neighborhood, "");
     const category = marketplaceCategories.includes(rawCategory) ? rawCategory : "";
     const condition = marketplaceConditions.includes(rawCondition) ? rawCondition : "";
+    const location = normalizeMarketplaceLocation(rawLocation);
+    const neighborhood = normalizeMarketplaceNeighborhood(rawNeighborhood, location);
     const minPrice = Math.max(0, toNumber(request.query.minPrice, 0));
     const maxPriceRaw = toNumber(request.query.maxPrice, 0);
     const maxPrice = maxPriceRaw > 0 ? maxPriceRaw : null;
@@ -1807,6 +1897,7 @@ function createApp() {
     const sort = ["newest", "price_asc", "price_desc"].includes(sortInput)
       ? sortInput
       : "newest";
+    const neighborhoodOptions = getNeighborhoodOptionsForLocation(location);
 
     const activeListings = snapshot.marketplaceListings
       .filter((item) => item.status === "active")
@@ -1830,6 +1921,8 @@ function createApp() {
           q: query,
           category: "",
           condition,
+          location,
+          neighborhood,
           minPrice,
           maxPrice,
           sort
@@ -1844,6 +1937,8 @@ function createApp() {
           q: query,
           category: categoryName,
           condition,
+          location,
+          neighborhood,
           minPrice,
           maxPrice,
           sort
@@ -1856,7 +1951,7 @@ function createApp() {
     const searchableQuery = query.toLowerCase();
     if (searchableQuery) {
       listings = listings.filter((listing) =>
-        `${listing.title} ${listing.description} ${listing.category}`
+        `${listing.title} ${listing.description} ${listing.category} ${listing.location} ${listing.neighborhood}`
           .toLowerCase()
           .includes(searchableQuery)
       );
@@ -1866,6 +1961,12 @@ function createApp() {
     }
     if (condition) {
       listings = listings.filter((listing) => listing.condition === condition);
+    }
+    if (location) {
+      listings = listings.filter((listing) => listing.location === location);
+    }
+    if (neighborhood) {
+      listings = listings.filter((listing) => listing.neighborhood === neighborhood);
     }
     if (minPrice > 0) {
       listings = listings.filter((listing) => listing.price >= minPrice);
@@ -1910,10 +2011,15 @@ function createApp() {
       categories: marketplaceCategories,
       categoryCards,
       conditions: marketplaceConditions,
+      locationOptions: marketplaceLocationOptions,
+      neighborhoodOptions,
+      locationNeighborhoods: marketplaceLocationNeighborhoods,
       filters: {
         q: query,
         category,
         condition,
+        location,
+        neighborhood,
         minPrice: minPrice || "",
         maxPrice: maxPrice || "",
         sort
@@ -1931,6 +2037,7 @@ function createApp() {
     const snapshot = await getSnapshot();
     const limitState = canCreateMarketplaceListing(snapshot, request.currentUser.id);
     const user = snapshot.users.find((item) => item.id === request.currentUser.id);
+    const defaultListingLocation = marketplaceLocationOptions[0] || "";
     if (user) {
       ensureUserWallet(user);
     }
@@ -1949,6 +2056,10 @@ function createApp() {
       limitState,
       categories: marketplaceCategories,
       conditions: marketplaceConditions,
+      locationOptions: marketplaceLocationOptions,
+      neighborhoodOptions: getNeighborhoodOptionsForLocation(defaultListingLocation),
+      locationNeighborhoods: marketplaceLocationNeighborhoods,
+      defaultListingLocation,
       marketplacePlans,
       activePlanSubscriptions,
       walletBalance: user ? user.walletBalance : 0,
@@ -2063,6 +2174,11 @@ function createApp() {
       const description = sanitizeMarketplaceText(request.body.description);
       const category = normalizeMarketplaceCategory(request.body.category);
       const condition = normalizeMarketplaceCondition(request.body.condition);
+      const location = normalizeMarketplaceLocation(request.body.location);
+      const neighborhood = normalizeMarketplaceNeighborhood(
+        request.body.neighborhood,
+        location
+      );
       const price = Math.max(0, Math.round(toNumber(request.body.price, 0)));
       const requestedImageUrls = normalizeImageArray(request.body.imageUrls);
       const uploadedImageUrls = (request.files || []).map(
@@ -2070,8 +2186,12 @@ function createApp() {
       );
       const imageUrls = [...uploadedImageUrls, ...requestedImageUrls].slice(0, 6);
 
-      if (!title || !description || price <= 0) {
-        setFlash(request, "error", "Title, description, and valid price are required.");
+      if (!title || !description || price <= 0 || !location || !neighborhood) {
+        setFlash(
+          request,
+          "error",
+          "Title, description, valid price, location, and neighborhood are required."
+        );
         response.redirect("/marketplace/new");
         return;
       }
@@ -2096,6 +2216,8 @@ function createApp() {
           description,
           category,
           condition,
+          location,
+          neighborhood,
           price,
           imageUrls: imageUrls.length ? imageUrls : [marketplaceFallbackImage],
           status: "active",
@@ -2919,6 +3041,10 @@ function createApp() {
     async (request, response) => {
       const checkInDate = request.query.checkInDate || isoDateOffset(1);
       const checkOutDate = request.query.checkOutDate || isoDateOffset(2);
+      const bookingReference = sanitizeMarketplaceText(
+        request.query.bookingReference,
+        ""
+      );
       const snapshot = await getSnapshot();
       const hotel = snapshot.hotels.find((item) => item.id === request.params.hotelId);
 
@@ -2937,6 +3063,37 @@ function createApp() {
       const payments = snapshot.payments
         .filter((payment) => payment.hotelId === hotel.id)
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      const paymentByBookingId = new Map(
+        payments
+          .filter((payment) => payment.bookingId)
+          .map((payment) => [payment.bookingId, payment])
+      );
+      const bookingsWithReferences = bookings.map((booking) => {
+        const payment = paymentByBookingId.get(booking.id);
+        const referenceNumber =
+          booking.paymentReference ||
+          booking.paymentExternalId ||
+          payment?.transactionRef ||
+          booking.id;
+        return {
+          ...booking,
+          referenceNumber
+        };
+      });
+      const referenceQuery = bookingReference.toLowerCase();
+      const filteredBookings = bookingReference
+        ? bookingsWithReferences.filter((booking) => {
+            const references = [
+              booking.referenceNumber,
+              booking.id,
+              booking.paymentReference,
+              booking.paymentExternalId
+            ]
+              .filter(Boolean)
+              .map((value) => String(value).toLowerCase());
+            return references.some((value) => value.includes(referenceQuery));
+          })
+        : bookingsWithReferences;
       const availabilityRows = hotelAvailability(snapshot, hotel.id, checkInDate, checkOutDate);
       const roomById = new Map(rooms.map((room) => [room.id, room]));
       const availability = availabilityRows.map((entry) => ({
@@ -2977,13 +3134,14 @@ function createApp() {
       response.render("admin-dashboard", {
         hotel,
         rooms,
-        bookings,
+        bookings: filteredBookings,
         payments,
         availability,
         pricingInsights,
         grossSales,
         platformRevenue,
         hotelReceivables,
+        bookingReference,
         amenityOptions: hotelAmenityOptions,
         roomFeatureOptions: hotelRoomFeatureOptions,
         selectedRoomFeatures,

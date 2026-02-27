@@ -2,12 +2,19 @@
 <%- include("partials/marketplace-masthead", {
   categories,
   searchQuery: "",
-  searchCategory: listing.category
+  searchCategory: listing.category,
+  searchLocation: listing.location || "",
+  searchNeighborhood: listing.neighborhood || ""
 }) %>
 
 <section class="card marketplace-page-intro">
   <h1><%= listing.title %></h1>
-  <p class="muted"><%= listing.category %> • <%= listing.condition %> • Listed <%= listing.createdAt %></p>
+  <p class="muted">
+    <%= listing.category %> • <%= listing.condition %> •
+    <%= listing.location || "Location not set" %>
+    <% if (listing.neighborhood) { %>• <%= listing.neighborhood %><% } %>
+    • Listed <%= listing.createdAt %>
+  </p>
 </section>
 
 <section class="marketplace-detail-layout marketplace-detail-shell">
@@ -28,6 +35,11 @@
     <h3>Item details</h3>
     <p class="market-price"><%= formatNaira(listing.price) %></p>
     <p class="muted tiny">Condition: <strong><%= listing.condition %></strong></p>
+    <p class="muted tiny">
+      Location:
+      <strong><%= listing.location || "Location not set" %></strong>
+      <% if (listing.neighborhood) { %>• <%= listing.neighborhood %><% } %>
+    </p>
     <p class="muted tiny">Seller: <strong><%= listing.sellerName %></strong></p>
     <p class="muted tiny">
       Contact:
@@ -67,6 +79,10 @@
         <div class="market-result-main">
           <h3><a href="/marketplace/listings/<%= item.id %>"><%= item.title %></a></h3>
           <p class="muted tiny"><%= item.category %> • <%= item.condition %></p>
+          <p class="muted tiny">
+            <%= item.location || "Location not set" %>
+            <% if (item.neighborhood) { %>• <%= item.neighborhood %><% } %>
+          </p>
           <p class="muted tiny">Seller: <%= item.sellerName %></p>
         </div>
         <div class="market-result-side">

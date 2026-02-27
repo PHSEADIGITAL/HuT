@@ -1,8 +1,26 @@
 <%
   const queryValue = typeof searchQuery === "string" ? searchQuery : "";
   const selectedCategory = typeof searchCategory === "string" ? searchCategory : "";
+  const selectedLocation = typeof searchLocation === "string" ? searchLocation : "";
+  const selectedNeighborhood = typeof searchNeighborhood === "string" ? searchNeighborhood : "";
   const categoryOptions = Array.isArray(categories) ? categories : [];
   const quickCategories = categoryOptions.slice(0, 10);
+  const buildCategoryHref = (categoryName = "") => {
+    const params = new URLSearchParams();
+    if (queryValue) {
+      params.set("q", queryValue);
+    }
+    if (categoryName) {
+      params.set("category", categoryName);
+    }
+    if (selectedLocation) {
+      params.set("location", selectedLocation);
+    }
+    if (selectedNeighborhood) {
+      params.set("neighborhood", selectedNeighborhood);
+    }
+    return `/marketplace${params.toString() ? `?${params.toString()}` : ""}`;
+  };
 %>
 
 <section class="marketplace-hub">
@@ -28,6 +46,12 @@
   </div>
 
   <form class="marketplace-global-search" method="GET" action="/marketplace">
+    <% if (selectedLocation) { %>
+      <input type="hidden" name="location" value="<%= selectedLocation %>" />
+    <% } %>
+    <% if (selectedNeighborhood) { %>
+      <input type="hidden" name="neighborhood" value="<%= selectedNeighborhood %>" />
+    <% } %>
     <div class="marketplace-search-input-wrap">
       <input
         type="text"
@@ -54,11 +78,11 @@
   </form>
 
   <nav class="marketplace-quick-nav">
-    <a class="<%= !selectedCategory ? "active" : "" %>" href="/marketplace">All</a>
+    <a class="<%= !selectedCategory ? "active" : "" %>" href="<%= buildCategoryHref("") %>">All</a>
     <% quickCategories.forEach((categoryName) => { %>
       <a
         class="<%= selectedCategory === categoryName ? "active" : "" %>"
-        href="/marketplace?category=<%= encodeURIComponent(categoryName) %>"
+        href="<%= buildCategoryHref(categoryName) %>"
       >
         <%= categoryName %>
       </a>
