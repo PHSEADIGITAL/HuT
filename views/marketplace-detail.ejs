@@ -1,11 +1,16 @@
 <%- include("partials/header", { title: listing.title }) %>
+<%- include("partials/marketplace-masthead", {
+  categories,
+  searchQuery: "",
+  searchCategory: listing.category
+}) %>
 
-<section class="hero small">
+<section class="card marketplace-page-intro">
   <h1><%= listing.title %></h1>
   <p class="muted"><%= listing.category %> • <%= listing.condition %> • Listed <%= listing.createdAt %></p>
 </section>
 
-<section class="marketplace-detail-layout">
+<section class="marketplace-detail-layout marketplace-detail-shell">
   <article class="card">
     <img src="<%= listing.primaryImage %>" alt="<%= listing.title %>" class="market-detail-image" />
     <% if (Array.isArray(listing.imageUrls) && listing.imageUrls.length > 1) { %>
@@ -15,15 +20,17 @@
         <% }) %>
       </div>
     <% } %>
-    <h2>Description</h2>
+    <h2>Item description</h2>
     <p><%= listing.description %></p>
   </article>
 
-  <aside class="card">
+  <aside class="card marketplace-sticky-card">
     <h3>Item details</h3>
     <p class="market-price"><%= formatNaira(listing.price) %></p>
-    <p class="muted">Seller: <strong><%= listing.sellerName %></strong></p>
-    <p class="muted">Contact:
+    <p class="muted tiny">Condition: <strong><%= listing.condition %></strong></p>
+    <p class="muted tiny">Seller: <strong><%= listing.sellerName %></strong></p>
+    <p class="muted tiny">
+      Contact:
       <% if (canViewContact && seller) { %>
         <strong><%= seller.phone %></strong>
       <% } else { %>
@@ -35,12 +42,11 @@
       <form method="POST" action="/marketplace/listings/<%= listing.id %>/unlock-contact">
         <button type="submit">Unlock seller contact for <%= formatNaira(contactUnlockFeeNaira) %></button>
       </form>
-      <p class="muted tiny">Fee goes to platform owner account. Payment uses your wallet balance.</p>
       <p class="muted tiny">Wallet balance: <%= formatNaira(walletBalance || 0) %> • <a href="/wallet">Fund wallet</a></p>
     <% } %>
 
     <% if (!currentUser) { %>
-      <a class="button-link" href="/auth/login?next=<%= encodeURIComponent(`/marketplace/listings/${listing.id}`) %>">
+      <a class="button-link full-width" href="/auth/login?next=<%= encodeURIComponent(`/marketplace/listings/${listing.id}`) %>">
         Sign in to unlock contact
       </a>
     <% } %>
@@ -49,23 +55,27 @@
 
 <section class="card">
   <h3>Similar listings</h3>
-  <div class="marketplace-grid">
+  <section class="marketplace-result-list">
     <% if (!relatedListings.length) { %>
       <p class="muted">No similar listings yet.</p>
     <% } %>
     <% relatedListings.forEach((item) => { %>
-      <article class="card market-item-card">
-        <a href="/marketplace/listings/<%= item.id %>">
-          <img src="<%= item.primaryImage %>" alt="<%= item.title %>" class="market-item-image" />
+      <article class="market-result-card">
+        <a class="market-result-media" href="/marketplace/listings/<%= item.id %>">
+          <img src="<%= item.primaryImage %>" alt="<%= item.title %>" />
         </a>
-        <div class="market-item-body">
-          <h4><a href="/marketplace/listings/<%= item.id %>"><%= item.title %></a></h4>
+        <div class="market-result-main">
+          <h3><a href="/marketplace/listings/<%= item.id %>"><%= item.title %></a></h3>
           <p class="muted tiny"><%= item.category %> • <%= item.condition %></p>
+          <p class="muted tiny">Seller: <%= item.sellerName %></p>
+        </div>
+        <div class="market-result-side">
           <p class="market-price"><%= formatNaira(item.price) %></p>
+          <a class="button-link small full-width" href="/marketplace/listings/<%= item.id %>">View item</a>
         </div>
       </article>
     <% }) %>
-  </div>
+  </section>
 </section>
 
 <%- include("partials/footer", { platform }) %>
