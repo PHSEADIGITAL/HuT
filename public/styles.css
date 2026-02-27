@@ -535,3 +535,523 @@ th {
     justify-content: flex-end;
   }
 }
+
+/* Booking-style rebuild */
+:root {
+  --booking-blue: #003b95;
+  --booking-blue-dark: #002f76;
+  --booking-yellow: #febb02;
+}
+
+body {
+  background: #f0f3f8;
+}
+
+.topbar {
+  background: var(--booking-blue);
+  border-bottom: 0;
+  backdrop-filter: none;
+}
+
+.brand,
+.nav a,
+.ghost-link,
+.auth-actions .tiny,
+.auth-actions .tiny strong {
+  color: #ffffff;
+}
+
+.ghost-btn {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ghost-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.topbar .button-link {
+  background: #ffffff;
+  color: var(--booking-blue);
+}
+
+.topbar .button-link:hover {
+  background: #e8f1ff;
+}
+
+.flash {
+  margin-top: 1rem;
+}
+
+.platform-tabs-wrap {
+  background: #ffffff;
+  border-bottom: 1px solid #d8e2f2;
+}
+
+.platform-tabs {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.55rem 0;
+  overflow-x: auto;
+}
+
+.platform-tab {
+  text-decoration: none;
+  color: #1f335d;
+  border: 1px solid #d8e2f2;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: #fff;
+}
+
+.platform-tab.active {
+  background: #e8f1ff;
+  border-color: #96b8ee;
+  color: #0d3f86;
+}
+
+.booking-hero {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  background: linear-gradient(145deg, #0a5bd3, var(--booking-blue));
+  border-radius: 12px;
+  border: 0;
+  padding: 1.2rem;
+  color: #fff;
+  box-shadow: 0 18px 38px rgba(0, 35, 89, 0.25);
+}
+
+.booking-hero-content h1 {
+  margin: 0.2rem 0 0.55rem;
+  font-size: clamp(1.4rem, 3vw, 2.2rem);
+}
+
+.booking-hero-content p {
+  margin: 0;
+  color: #dbe8ff;
+}
+
+.booking-search-bar {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: 2fr repeat(5, 1fr);
+  gap: 0.6rem;
+  background: #fff;
+  border-radius: 10px;
+  padding: 0.6rem;
+  border: 4px solid var(--booking-yellow);
+}
+
+.booking-field {
+  min-width: 0;
+}
+
+.booking-field.wide {
+  grid-column: span 2;
+}
+
+.booking-field label {
+  color: #4d5a72;
+  font-size: 0.8rem;
+}
+
+.booking-field input,
+.booking-field select {
+  border-radius: 8px;
+  border-color: #ccd8ec;
+}
+
+.search-btn-wrap {
+  display: flex;
+  align-items: end;
+}
+
+.search-btn {
+  width: 100%;
+  border-radius: 8px;
+  background: #0071c2;
+}
+
+.search-btn:hover {
+  background: #005d9f;
+}
+
+.results-shell {
+  display: grid;
+  grid-template-columns: 290px 1fr;
+  gap: 1rem;
+}
+
+.results-sidebar {
+  position: sticky;
+  top: 86px;
+  align-self: start;
+}
+
+.results-sidebar h3 {
+  margin-top: 0;
+}
+
+.summary-list {
+  padding-left: 1.1rem;
+  margin-top: 0.4rem;
+  margin-bottom: 0.8rem;
+}
+
+.summary-list li {
+  margin-bottom: 0.4rem;
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.chip {
+  display: inline-block;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #2f4777;
+  border: 1px solid #d8e5ff;
+  padding: 0.28rem 0.58rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.results-list .section-header {
+  margin-bottom: 0.8rem;
+}
+
+.search-result-card {
+  display: grid;
+  grid-template-columns: 280px 1fr 210px;
+  gap: 1rem;
+  background: #fff;
+  border: 1px solid #d8e2f2;
+  border-radius: 12px;
+  padding: 0.8rem;
+  margin-bottom: 0.85rem;
+  box-shadow: 0 8px 20px rgba(16, 34, 69, 0.08);
+}
+
+.result-media img {
+  width: 100%;
+  height: 100%;
+  min-height: 210px;
+  max-height: 220px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.result-title-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.result-title-row h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.result-title-row h3 a {
+  color: #005ea6;
+  text-decoration: none;
+}
+
+.result-title-row h3 a:hover {
+  text-decoration: underline;
+}
+
+.result-meta {
+  margin: 0.25rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+}
+
+.result-location {
+  margin: 0;
+  font-size: 0.92rem;
+  color: #16418e;
+  font-weight: 600;
+}
+
+.result-amenities {
+  margin-top: 0.5rem;
+  margin-bottom: 0.45rem;
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.result-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.review-pill {
+  display: inline-flex;
+  gap: 0.7rem;
+  align-items: center;
+}
+
+.review-pill p {
+  margin: 0;
+  font-weight: 700;
+  color: #1f335d;
+  text-align: right;
+}
+
+.review-pill strong {
+  background: #003b95;
+  color: #fff;
+  border-radius: 8px 8px 8px 2px;
+  padding: 0.35rem 0.55rem;
+}
+
+.price {
+  margin: 0.2rem 0;
+  font-size: 1.1rem;
+}
+
+.property-headline h1 {
+  margin: 0.2rem 0;
+}
+
+.property-headline .result-meta {
+  margin: 0.2rem 0 0.5rem;
+}
+
+.property-gallery {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+
+.property-main-photo img {
+  width: 100%;
+  height: 330px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.property-thumb-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+}
+
+.property-thumb-grid img {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.property-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(310px, 1fr);
+  gap: 1rem;
+}
+
+.property-main-column .card h2 {
+  margin-top: 0;
+}
+
+.property-side-column {
+  align-self: start;
+}
+
+.sticky-booking {
+  position: sticky;
+  top: 86px;
+}
+
+.room-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.8rem;
+}
+
+.room-card {
+  border: 1px solid #d8e2f2;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.room-photo {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+}
+
+.room-content {
+  padding: 0.7rem;
+}
+
+.room-content ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1rem;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid #e2eaf7;
+  margin: 0.9rem 0;
+}
+
+.marketplace-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.marketplace-cta {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.marketplace-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 0.9rem;
+}
+
+.market-item-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.market-item-image {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  display: block;
+}
+
+.market-item-body {
+  padding: 0.75rem;
+}
+
+.market-item-body h3,
+.market-item-body h4 {
+  margin: 0 0 0.25rem;
+}
+
+.market-item-body a {
+  color: #005ea6;
+  text-decoration: none;
+}
+
+.market-item-body a:hover {
+  text-decoration: underline;
+}
+
+.market-price {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0.2rem 0;
+  color: #0d2d62;
+}
+
+.marketplace-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
+  gap: 1rem;
+}
+
+.market-detail-image {
+  width: 100%;
+  max-height: 380px;
+  object-fit: cover;
+  border-radius: 12px;
+  margin-bottom: 0.65rem;
+}
+
+@media (max-width: 1140px) {
+  .booking-search-bar {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .booking-field.wide {
+    grid-column: span 3;
+  }
+
+  .results-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .results-sidebar {
+    position: static;
+  }
+
+  .search-result-card {
+    grid-template-columns: 1fr;
+  }
+
+  .result-media img {
+    min-height: 210px;
+  }
+
+  .result-side {
+    align-items: flex-start;
+    gap: 0.6rem;
+  }
+
+  .property-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sticky-booking {
+    position: static;
+  }
+
+  .marketplace-detail-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .booking-search-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-field.wide {
+    grid-column: span 1;
+  }
+
+  .property-gallery {
+    grid-template-columns: 1fr;
+  }
+
+  .property-main-photo img {
+    height: 250px;
+  }
+
+  .property-thumb-grid img {
+    height: 130px;
+  }
+
+  .whatsapp-fab {
+    padding: 0.55rem 0.72rem;
+    font-size: 0.8rem;
+  }
+
+  .marketplace-actions {
+    align-items: stretch;
+  }
+}

@@ -80,3 +80,98 @@ test("hotel admin can access assigned dashboard", async () => {
   await admin.get("/admin/hotels/hotel-seaside-grand/dashboard").expect(200);
   await admin.get("/admin/hotels/hotel-bonny-suites/dashboard").expect(403);
 });
+
+test("marketplace listing limit, wallet topup and contact unlock flow", async () => {
+  const app = createApp();
+  const seller = supertest.agent(app);
+
+  await seller
+    .post("/auth/login")
+    .type("form")
+    .send({
+      email: "customer@hut.app",
+      password: "Customer@123",
+      next: "/marketplace"
+    })
+    .expect(302);
+
+  await seller
+    .get("/marketplace/new")
+    .expect(200);
+
+  let failures = 0;
+  let successes = 0;
+  for (let index = 0; index < 5; index += 1) {
+    const response = await seller
+      .post("/marketplace/listings")
+      .type("form")
+      .send({
+        title: `Smoke Test Item ${index + 1}`,
+        description: "Test listing for monthly cap validation",
+        category: "Electronics",
+        condition: "Used",
+        price: "25000"
+      })
+      .expect(302);
+
+    if (response.headers.location === "/marketplace/new") {
+      failures += 1;
+    } else {
+      successes += 1;
+    }
+  }
+
+  assert.ok(failures >= 1);
+  assert.ok(successes <= 4);
+
+  const buyer = supertest.agent(app);
+  const unique = Date.now();
+  await buyer
+    .post("/auth/register")
+    .type("form")
+    .send({
+      name: "Marketplace Buyer",
+      phone: `+23480355${String(unique).slice(-4)}`,
+      email: `buyer${unique}@hut.app`,
+      password: "Buyer@123",
+      confirmPassword: "Buyer@123",
+      next: "/marketplace"
+    })
+    .expect(302);
+
+  await buyer
+    .post("/wallet/topup")
+    .type("form")
+    .send({
+      amount: "500",
+      reference: `SMOKE-${unique}`
+    })
+    .expect(302);
+
+  await buyer
+    .post("/marketplace/listings/listing-used-iphone-13/unlock-contact")
+    .type("form")
+    .send({})
+    .expect(302);
+
+  const listingPage = await buyer.get("/marketplace/listings/listing-used-iphone-13").expect(200);
+  assert.match(listingPage.text, /\+2348030000201/);
+});
+
+test("platform owner can access revenue dashboard", async () => {
+  const app = createApp();
+  const owner = supertest.agent(app);
+
+  await owner
+    .post("/auth/login")
+    .type("form")
+    .send({
+      email: "owner@hut.app",
+      password: "Owner@123",
+      next: "/admin/owner-dashboard"
+    })
+    .expect(302);
+
+  const ownerDashboard = await owner.get("/admin/owner-dashboard").expect(200);
+  assert.match(ownerDashboard.text, /Platform Owner Dashboard/);
+});

@@ -1,0 +1,67 @@
+<%- include("partials/header", { title: "Create Marketplace Listing" }) %>
+
+<section class="hero small">
+  <h1>Create listing</h1>
+  <p>Upload second-hand items for Bonny Island buyers. Monthly limit: 4 listings per user.</p>
+</section>
+
+<section class="stats-grid">
+  <article class="card">
+    <h3>Listings used this month</h3>
+    <p class="metric"><%= limitState.used %> / 4</p>
+  </article>
+  <article class="card">
+    <h3>Remaining</h3>
+    <p class="metric"><%= limitState.remaining %></p>
+  </article>
+</section>
+
+<section class="card">
+  <% if (!limitState.allowed) { %>
+    <p class="danger">You have reached your monthly listing limit. Try again next month.</p>
+  <% } else { %>
+    <form class="grid-form" method="POST" action="/marketplace/listings" enctype="multipart/form-data">
+      <div class="full">
+        <label for="title">Item title</label>
+        <input id="title" name="title" required />
+      </div>
+      <div class="full">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" rows="4" required></textarea>
+      </div>
+      <div>
+        <label for="category">Category</label>
+        <select id="category" name="category" required>
+          <% categories.forEach((category) => { %>
+            <option value="<%= category %>"><%= category %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div>
+        <label for="condition">Condition</label>
+        <select id="condition" name="condition" required>
+          <% conditions.forEach((item) => { %>
+            <option value="<%= item %>"><%= item %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div>
+        <label for="price">Price (NGN)</label>
+        <input id="price" name="price" type="number" min="1" required />
+      </div>
+      <div class="full">
+        <label for="images">Upload photos (up to 4)</label>
+        <input id="images" name="images" type="file" accept="image/*" multiple capture="environment" />
+      </div>
+      <div class="full">
+        <label for="imageUrls">Optional external image URLs (comma separated)</label>
+        <input id="imageUrls" name="imageUrls" placeholder="https://...jpg, https://...jpg" />
+      </div>
+      <div class="full">
+        <button type="submit">Publish listing</button>
+      </div>
+    </form>
+  <% } %>
+</section>
+
+<%- include("partials/footer", { platform }) %>

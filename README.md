@@ -14,6 +14,10 @@ Hut! is a hotel booking web app for Bonny Island with:
 - fraud protection scoring
 - real-time availability updates
 - hotel admin dashboard with payout logs, days booked, and smart pricing insights
+- platform owner revenue dashboard aggregating all hotel/platform transactions
+- Bonny Island second-hand marketplace with image uploads
+- seller contact unlock flow (NGN 200 fee paid to platform account)
+- virtual wallet for users (top-up and spend on unlock fees)
 
 ---
 
@@ -66,6 +70,13 @@ Open: `http://localhost:3000`
 - `GET /bookings/:bookingId/success` - Confirmation + acknowledgement
 - `GET /bookings/:bookingId/manage` - Manage/cancel booking
 - `POST /bookings/:bookingId/cancel` - Cancel and calculate refund
+- `GET /wallet` - Virtual wallet and ledger
+- `POST /wallet/topup` - Credit wallet after transfer
+- `GET /marketplace` - Browse second-hand listings
+- `GET /marketplace/new` - Create listing (auth required)
+- `GET /marketplace/my-listings` - Manage seller listings
+- `GET /marketplace/listings/:listingId` - Listing detail
+- `POST /marketplace/listings/:listingId/unlock-contact` - Unlock seller contact for NGN 200
 
 ### Hotel Admin
 - `GET /admin` - Admin overview (requires hotel admin/platform admin)
@@ -73,6 +84,9 @@ Open: `http://localhost:3000`
 - `POST /admin/hotels` - Create hotel
 - `GET /admin/hotels/:hotelId/dashboard` - Hotel dashboard
 - `POST /admin/hotels/:hotelId/subscription/renew` - Renew premium listing
+
+### Platform Owner
+- `GET /admin/owner-dashboard` - Unified revenue and transaction overview
 
 ### API
 - `GET /health` - Health check
@@ -98,6 +112,16 @@ Edit `.env`:
 - `EMAIL_PROVIDER=mock|smtp|sendgrid`
 
 Provider-specific credentials are documented in `.env.example`.
+
+---
+
+## Marketplace Rules
+
+- Each user can create up to **4 listings per month**.
+- Seller phone numbers are masked by default.
+- Buyers pay **NGN 200** to unlock a seller contact.
+- Unlock fee is recorded as platform revenue.
+- Wallet top-ups are credited to user virtual wallets and tracked in the ledger.
 
 ---
 

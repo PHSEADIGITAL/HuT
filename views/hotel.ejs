@@ -1,189 +1,193 @@
 <%- include("partials/header", { title: hotel.name }) %>
 
-<section class="hero hotel-hero">
-  <div class="hotel-hero-copy">
-    <p class="eyebrow">Hotel Details</p>
-    <h1><%= hotel.name %></h1>
-    <p class="muted"><%= hotel.location %></p>
-    <p><%= hotel.description %></p>
-    <div class="stats inline">
-      <span>Pickup add-on: <strong><%= formatNaira(hotel.pickupFee) %></strong></span>
-      <span>Commission: <strong><%= formatPercent(hotel.commissionRate) %></strong></span>
-    </div>
-  </div>
-  <div class="hotel-hero-media">
-    <img src="<%= hotel.coverImage %>" alt="<%= hotel.name %> cover image" />
+<section class="property-headline">
+  <p class="muted tiny">
+    <a href="/?destination=<%= encodeURIComponent(search.destination) %>&checkInDate=<%= checkInDate %>&checkOutDate=<%= checkOutDate %>&adults=<%= search.adults %>&rooms=<%= search.rooms %>">
+      Back to search results
+    </a>
+  </p>
+  <h1><%= hotel.name %></h1>
+  <p class="muted"><%= "★".repeat(hotel.starRating) %> <%= hotel.propertyType %> • <%= hotel.location %></p>
+  <div class="result-meta muted">
+    <span><%= hotel.distanceToCenterKm %> km from center</span>
+    <span><%= hotel.reviewLabel %> • <%= hotel.reviewScore %> / 10 (<%= hotel.reviewCount %> reviews)</span>
   </div>
 </section>
 
-<section class="card">
-  <h2>Photo gallery</h2>
-  <div class="gallery-grid">
-    <% (hotel.galleryImages || []).forEach((image, index) => { %>
+<section class="property-gallery">
+  <div class="property-main-photo">
+    <img src="<%= hotel.coverImage %>" alt="<%= hotel.name %> main photo" />
+  </div>
+  <div class="property-thumb-grid">
+    <% (hotel.galleryImages || []).slice(0, 4).forEach((image, index) => { %>
       <img src="<%= image %>" alt="<%= hotel.name %> gallery image <%= index + 1 %>" />
     <% }) %>
   </div>
 </section>
 
-<section
-  class="card"
-  id="availability-root"
-  data-hotel-id="<%= hotel.id %>"
-  data-check-in="<%= checkInDate %>"
-  data-check-out="<%= checkOutDate %>"
->
-  <h2>Room categories with live availability</h2>
+<section class="property-layout">
+  <div class="property-main-column">
+    <article class="card">
+      <h2>Property highlights</h2>
+      <p><%= hotel.description %></p>
+      <div class="chip-list">
+        <% (hotel.amenities || []).forEach((item) => { %>
+          <span class="chip"><%= item %></span>
+        <% }) %>
+      </div>
+    </article>
 
-  <form class="grid-form compact" method="GET" action="/hotels/<%= hotel.id %>">
-    <div>
-      <label for="checkInDate">Check-in</label>
-      <input id="checkInDate" type="date" name="checkInDate" value="<%= checkInDate %>" required />
-    </div>
-    <div>
-      <label for="checkOutDate">Check-out</label>
-      <input
-        id="checkOutDate"
-        type="date"
-        name="checkOutDate"
-        value="<%= checkOutDate %>"
-        required
-      />
-    </div>
-    <div class="align-end">
-      <button type="submit">Refresh dates</button>
-    </div>
-  </form>
-
-  <div class="room-card-grid">
-    <% rooms.forEach((room) => { %>
-      <article class="room-card" data-room-id="<%= room.id %>">
-        <img class="room-photo" src="<%= room.image %>" alt="<%= room.category %> room photo" />
-        <div class="room-content">
-          <div class="card-head">
-            <h3><%= room.category %></h3>
-            <span class="badge <%= room.availability.soldOut ? 'warn' : 'ok' %>">
-              <span class="availability-value <%= room.availability.soldOut ? 'danger' : 'success' %>"><%= room.availability.availableUnits %></span>
-              available
-            </span>
-          </div>
-          <p class="muted">Price: <strong><%= formatNaira(room.pricePerNight) %></strong> per night</p>
-          <p class="muted tiny">
-            Total units: <%= room.totalUnits %> |
-            Booked for selected dates:
-            <span class="booked-value"><%= room.totalUnits - room.availability.availableUnits %></span>
-          </p>
-        </div>
-      </article>
-    <% }) %>
-  </div>
-  <p class="muted tiny">Availability updates automatically when bookings or cancellations happen.</p>
-</section>
-
-<section class="card">
-  <h2>Book this hotel</h2>
-  <% if (!currentUser || currentUser.role !== "customer") { %>
-    <p class="muted">
-      You need a customer account to continue with booking and payment.
-    </p>
-    <a
-      class="button-link"
-      href="/auth/login?next=<%= encodeURIComponent(`/hotels/${hotel.id}?checkInDate=${checkInDate}&checkOutDate=${checkOutDate}`) %>"
+    <article
+      class="card"
+      id="availability-root"
+      data-hotel-id="<%= hotel.id %>"
+      data-check-in="<%= checkInDate %>"
+      data-check-out="<%= checkOutDate %>"
     >
-      Sign in to book
-    </a>
-  <% } else { %>
-    <form class="grid-form" method="POST" action="/bookings">
-      <input type="hidden" name="hotelId" value="<%= hotel.id %>" />
+      <h2>Available room types</h2>
+      <form class="grid-form compact" method="GET" action="/hotels/<%= hotel.id %>">
+        <input type="hidden" name="destination" value="<%= search.destination %>" />
+        <input type="hidden" name="adults" value="<%= search.adults %>" />
+        <input type="hidden" name="rooms" value="<%= search.rooms %>" />
+        <div>
+          <label for="checkInDate">Check-in</label>
+          <input id="checkInDate" type="date" name="checkInDate" value="<%= checkInDate %>" required />
+        </div>
+        <div>
+          <label for="checkOutDate">Check-out</label>
+          <input
+            id="checkOutDate"
+            type="date"
+            name="checkOutDate"
+            value="<%= checkOutDate %>"
+            required
+          />
+        </div>
+        <div class="align-end">
+          <button type="submit">Update availability</button>
+        </div>
+      </form>
 
-      <div class="full card subtle">
-        <p>
-          Booking as <strong><%= currentUser.name %></strong> (<%= currentUser.email %>,
-          <%= currentUser.phone %>)
-        </p>
+      <div class="room-card-grid">
+        <% rooms.forEach((room) => { %>
+          <article class="room-card" data-room-id="<%= room.id %>">
+            <img class="room-photo" src="<%= room.image %>" alt="<%= room.category %> room photo" />
+            <div class="room-content">
+              <div class="card-head">
+                <h3><%= room.category %></h3>
+                <span class="badge <%= room.availability.soldOut ? 'warn' : 'ok' %>">
+                  <span class="availability-value <%= room.availability.soldOut ? 'danger' : 'success' %>"><%= room.availability.availableUnits %></span>
+                  left
+                </span>
+              </div>
+              <p class="muted tiny">
+                <%= room.bedType %> • Sleeps up to <%= room.sleeps %> • <%= room.roomSizeSqm %> m²
+              </p>
+              <p class="muted">
+                Price: <strong><%= formatNaira(room.pricePerNight) %></strong> per night
+              </p>
+              <p class="muted tiny">
+                Booked for selected dates:
+                <span class="booked-value"><%= room.totalUnits - room.availability.availableUnits %></span>
+                of <%= room.totalUnits %>
+              </p>
+              <ul class="tiny muted">
+                <% (room.highlights || []).slice(0, 3).forEach((item) => { %>
+                  <li><%= item %></li>
+                <% }) %>
+              </ul>
+            </div>
+          </article>
+        <% }) %>
       </div>
+      <p class="muted tiny">Availability updates automatically when bookings or cancellations happen.</p>
+    </article>
 
-      <div>
-        <label for="roomId">Room category</label>
-        <select id="roomId" name="roomId" required>
-          <% rooms.forEach((room) => { %>
-            <option value="<%= room.id %>">
-              <%= room.category %> - <%= formatNaira(room.pricePerNight) %>/night
-            </option>
-          <% }) %>
-        </select>
-      </div>
+    <article class="card ideas">
+      <h3>Cancellation policy: <%= hotel.cancellationPolicy %></h3>
+      <ul>
+        <% cancellationRules.forEach((rule) => { %>
+          <li><%= rule %></li>
+        <% }) %>
+      </ul>
+    </article>
+  </div>
 
-      <div>
-        <label for="guests">Guests</label>
-        <input id="guests" name="guests" type="number" min="1" value="1" required />
-      </div>
+  <aside class="property-side-column">
+    <article class="card sticky-booking">
+      <h3>Your booking details</h3>
+      <p class="muted tiny"><%= checkInDate %> - <%= checkOutDate %> • <%= search.adults %> adults • <%= search.rooms %> room(s)</p>
+      <p class="price">From <strong><%= formatNaira(hotel.minPrice) %></strong> / night</p>
+      <% if (!currentUser || currentUser.role !== "customer") { %>
+        <p class="muted">Sign in to complete booking with secure payment.</p>
+        <a
+          class="button-link full-width"
+          href="/auth/login?next=<%= encodeURIComponent(`/hotels/${hotel.id}?destination=${encodeURIComponent(search.destination)}&checkInDate=${checkInDate}&checkOutDate=${checkOutDate}&adults=${search.adults}&rooms=${search.rooms}`) %>"
+        >
+          Sign in to book
+        </a>
+      <% } else { %>
+        <form class="grid-form" method="POST" action="/bookings">
+          <input type="hidden" name="hotelId" value="<%= hotel.id %>" />
 
-      <div>
-        <label for="checkInBook">Check-in</label>
-        <input
-          id="checkInBook"
-          name="checkInDate"
-          type="date"
-          value="<%= checkInDate %>"
-          required
-        />
-      </div>
+          <div class="full card subtle">
+            <p class="tiny">
+              Booking as <strong><%= currentUser.name %></strong><br />
+              <span class="muted"><%= currentUser.email %> • <%= currentUser.phone %></span>
+            </p>
+          </div>
 
-      <div>
-        <label for="checkOutBook">Check-out</label>
-        <input
-          id="checkOutBook"
-          name="checkOutDate"
-          type="date"
-          value="<%= checkOutDate %>"
-          required
-        />
-      </div>
+          <div class="full">
+            <label for="roomId">Room category</label>
+            <select id="roomId" name="roomId" required>
+              <% rooms.forEach((room) => { %>
+                <option value="<%= room.id %>">
+                  <%= room.category %> - <%= formatNaira(room.pricePerNight) %>/night
+                </option>
+              <% }) %>
+            </select>
+          </div>
 
-      <div>
-        <label for="emergencyContactName">Emergency contact name</label>
-        <input id="emergencyContactName" name="emergencyContactName" type="text" required />
-      </div>
+          <div>
+            <label for="checkInBook">Check-in</label>
+            <input id="checkInBook" name="checkInDate" type="date" value="<%= checkInDate %>" required />
+          </div>
+          <div>
+            <label for="checkOutBook">Check-out</label>
+            <input id="checkOutBook" name="checkOutDate" type="date" value="<%= checkOutDate %>" required />
+          </div>
 
-      <div>
-        <label for="emergencyContactPhone">Emergency contact phone</label>
-        <input id="emergencyContactPhone" name="emergencyContactPhone" type="tel" required />
-      </div>
+          <div>
+            <label for="guests">Guests</label>
+            <input id="guests" name="guests" type="number" min="1" value="<%= search.adults %>" required />
+          </div>
+          <div>
+            <label for="emergencyContactName">Emergency contact name</label>
+            <input id="emergencyContactName" name="emergencyContactName" type="text" required />
+          </div>
+          <div>
+            <label for="emergencyContactPhone">Emergency contact phone</label>
+            <input id="emergencyContactPhone" name="emergencyContactPhone" type="tel" required />
+          </div>
 
-      <div class="full">
-        <label class="checkbox">
-          <input type="checkbox" name="pickupRequested" />
-          Add pickup service (<%= formatNaira(hotel.pickupFee) %>) - refundable only if cancellation is 24+ hours before check-in.
-        </label>
-      </div>
-
-      <div class="full">
-        <label for="specialRequest">Special requests (optional)</label>
-        <textarea id="specialRequest" name="specialRequest" rows="3"></textarea>
-      </div>
-
-      <div class="full card subtle">
-        <p>
-          <strong>Secure payment note:</strong> total includes room amount + service charge
-          (<%= formatPercent(hotel.commissionRate) %> commission model).
-        </p>
-        <p class="muted">Fraud protection is active to secure guests and hotels.</p>
-      </div>
-
-      <div class="full">
-        <button type="submit">Book and Pay Online</button>
-      </div>
-    </form>
-  <% } %>
-</section>
-
-<section class="card ideas">
-  <h3>Cancellation policy: <%= hotel.cancellationPolicy %></h3>
-  <ul>
-    <% cancellationRules.forEach((rule) => { %>
-      <li><%= rule %></li>
-    <% }) %>
-  </ul>
+          <div class="full">
+            <label class="checkbox">
+              <input type="checkbox" name="pickupRequested" />
+              Add pickup service (<%= formatNaira(hotel.pickupFee) %>)
+            </label>
+          </div>
+          <div class="full">
+            <label for="specialRequest">Special requests</label>
+            <textarea id="specialRequest" name="specialRequest" rows="2"></textarea>
+          </div>
+          <div class="full">
+            <button type="submit" class="full-width">Reserve now</button>
+          </div>
+          <p class="muted tiny full">Secure checkout with fraud protection and instant SMS/email confirmation.</p>
+        </form>
+      <% } %>
+    </article>
+  </aside>
 </section>
 
 <%- include("partials/footer", { platform }) %>
