@@ -159,10 +159,9 @@
 <section class="card ideas">
   <h3>Cancellation policy: <%= hotel.cancellationPolicy %></h3>
   <ul>
-    <li>100% refund if cancelled 48+ hrs before check-in.</li>
-    <li>50% refund if cancelled 24-48 hrs before check-in.</li>
-    <li>No refund if cancelled under 24 hrs.</li>
-    <li>Pickup is fully refundable only if cancelled 24+ hrs before.</li>
+    <% cancellationRules.forEach((rule) => { %>
+      <li><%= rule %></li>
+    <% }) %>
   </ul>
 </section>
 

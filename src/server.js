@@ -111,6 +111,7 @@ app.get("/hotels/:hotelId", async (request, response) => {
     rooms: roomCards,
     checkInDate,
     checkOutDate,
+    cancellationRules: getRefundPolicyRules(hotel.cancellationPolicy),
     platform: snapshot.platform
   });
 });

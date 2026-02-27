@@ -14,10 +14,24 @@ function getRefundPolicyRules(policyType) {
     ];
   }
 
-  return [
-    "Policy configured by hotel.",
-    "Manual review may be required for unusual cancellation cases."
-  ];
+  if (policyType === "moderate") {
+    return [
+      "75% refund if cancelled 72+ hours before check-in",
+      "30% refund if cancelled 24-72 hours before check-in",
+      "No refund if cancelled within 24 hours",
+      "Pickup add-on is fully refundable only if cancelled at least 24 hours before check-in"
+    ];
+  }
+
+  if (policyType === "strict") {
+    return [
+      "50% refund if cancelled 72+ hours before check-in",
+      "No refund if cancelled within 72 hours",
+      "Pickup add-on is fully refundable only if cancelled at least 24 hours before check-in"
+    ];
+  }
+
+  return ["Policy configured by hotel.", "Manual review may be required."];
 }
 
 function calculateRefund({
@@ -40,6 +54,16 @@ function calculateRefund({
     } else {
       refundablePercent = 0;
     }
+  } else if (policyType === "moderate") {
+    if (leadHours >= 72) {
+      refundablePercent = 0.75;
+    } else if (leadHours >= 24) {
+      refundablePercent = 0.3;
+    } else {
+      refundablePercent = 0;
+    }
+  } else if (policyType === "strict") {
+    refundablePercent = leadHours >= 72 ? 0.5 : 0;
   }
 
   const baseRefund = Math.round(nonPickupPaid * refundablePercent);
