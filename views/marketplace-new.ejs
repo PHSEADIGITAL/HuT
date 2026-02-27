@@ -70,6 +70,24 @@
           </select>
         </div>
         <div>
+          <label for="listingLocation">Location</label>
+          <select id="listingLocation" name="location" required>
+            <% locationOptions.forEach((item) => { %>
+              <option value="<%= item %>" <%= item === defaultListingLocation ? "selected" : "" %>>
+                <%= item %>
+              </option>
+            <% }) %>
+          </select>
+        </div>
+        <div>
+          <label for="listingNeighborhood">Neighborhood</label>
+          <select id="listingNeighborhood" name="neighborhood" required>
+            <% neighborhoodOptions.forEach((item) => { %>
+              <option value="<%= item %>"><%= item %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div>
           <label for="price">Price (NGN)</label>
           <input id="price" name="price" type="number" min="1" required />
         </div>
@@ -88,5 +106,35 @@
     <% } %>
   </section>
 </section>
+
+<script>
+  (function attachMarketplaceNeighborhoodSelector() {
+    const locationSelect = document.getElementById("listingLocation");
+    const neighborhoodSelect = document.getElementById("listingNeighborhood");
+    const locationMap = <%- JSON.stringify(locationNeighborhoods || {}) %>;
+    if (!locationSelect || !neighborhoodSelect || !locationMap) {
+      return;
+    }
+
+    function rebuildNeighborhoodOptions() {
+      const selectedLocation = locationSelect.value;
+      const options = locationMap[selectedLocation] || [];
+      const previousValue = neighborhoodSelect.value;
+      neighborhoodSelect.innerHTML = "";
+      options.forEach((item, index) => {
+        const option = document.createElement("option");
+        option.value = item;
+        option.textContent = item;
+        if (item === previousValue || (!previousValue && index === 0)) {
+          option.selected = true;
+        }
+        neighborhoodSelect.appendChild(option);
+      });
+    }
+
+    locationSelect.addEventListener("change", rebuildNeighborhoodOptions);
+    rebuildNeighborhoodOptions();
+  })();
+</script>
 
 <%- include("partials/footer", { platform }) %>
