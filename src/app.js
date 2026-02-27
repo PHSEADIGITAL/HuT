@@ -150,6 +150,86 @@ function withRoomMedia(room) {
   };
 }
 
+const propertyTypeOptions = [
+  "Hotel",
+  "Resort",
+  "Serviced Apartment",
+  "Boutique Hotel"
+];
+
+const fallbackAmenities = [
+  ["Free WiFi", "Breakfast included", "Airport pickup"],
+  ["Sea view", "Swimming pool", "24/7 front desk"],
+  ["Family rooms", "Restaurant", "Free parking"],
+  ["Business lounge", "Conference room", "Smart TV"]
+];
+
+function reviewLabelFromScore(score) {
+  if (score >= 9) {
+    return "Superb";
+  }
+  if (score >= 8.3) {
+    return "Very good";
+  }
+  if (score >= 7.5) {
+    return "Good";
+  }
+  return "Pleasant";
+}
+
+function withHotelListingMeta(hotel) {
+  const seed = numericSeed(hotel.id);
+  const starRating = hotel.starRating || Math.min(5, 3 + (seed % 3));
+  const reviewScore =
+    hotel.reviewScore ||
+    Number((7.4 + ((seed % 18) / 10)).toFixed(1));
+  const reviewCount = hotel.reviewCount || 120 + (seed % 980);
+  const distanceToCenterKm =
+    hotel.distanceToCenterKm ||
+    Number((0.5 + ((seed % 24) / 10)).toFixed(1));
+  const propertyType =
+    hotel.propertyType || propertyTypeOptions[seed % propertyTypeOptions.length];
+  const amenityFallback = fallbackAmenities[seed % fallbackAmenities.length];
+  const amenities = Array.isArray(hotel.amenities) && hotel.amenities.length
+    ? hotel.amenities
+    : amenityFallback;
+
+  return {
+    ...hotel,
+    starRating,
+    reviewScore,
+    reviewCount,
+    reviewLabel: reviewLabelFromScore(reviewScore),
+    distanceToCenterKm,
+    propertyType,
+    amenities
+  };
+}
+
+function withRoomDisplayMeta(room) {
+  const seed = numericSeed(room.id);
+  const sleeps = room.sleeps || 2 + (seed % 3);
+  const roomSizeSqm = room.roomSizeSqm || 18 + (seed % 15);
+  const bedTypes = [
+    "1 king bed",
+    "1 queen bed",
+    "2 twin beds",
+    "1 king bed + sofa bed"
+  ];
+  const bedType = room.bedType || bedTypes[seed % bedTypes.length];
+  const highlights = Array.isArray(room.highlights) && room.highlights.length
+    ? room.highlights
+    : ["Free cancellation option", "Breakfast available", "Pay online"];
+
+  return {
+    ...room,
+    sleeps,
+    roomSizeSqm,
+    bedType,
+    highlights
+  };
+}
+
 function canViewBooking(user, booking) {
   if (!user) {
     return false;
@@ -413,10 +493,22 @@ function createApp() {
   app.get("/", async (request, response) => {
     const checkInDate = request.query.checkInDate || isoDateOffset(1);
     const checkOutDate = request.query.checkOutDate || isoDateOffset(2);
+    const destination = String(request.query.destination || "Bonny Island").trim();
+    const adults = Math.max(1, toNumber(request.query.adults, 2));
+    const roomsRequested = Math.max(1, toNumber(request.query.rooms, 1));
+    const minPriceFilter = Math.max(0, toNumber(request.query.minPrice, 0));
+    const rawMaxPrice = toNumber(request.query.maxPrice, 0);
+    const maxPriceFilter = rawMaxPrice > 0 ? rawMaxPrice : null;
+    const sortByInput = String(request.query.sort || "recommended").trim();
+    const sortBy = ["recommended", "price_asc", "price_desc", "rating_desc", "distance"]
+      .includes(sortByInput)
+      ? sortByInput
+      : "recommended";
+
     const snapshot = await getSnapshot();
 
-    const hotels = sortHotelsForMarketplace(snapshot.hotels).map((hotel) => {
-      const hotelWithMedia = withHotelMedia(hotel);
+    let hotels = sortHotelsForMarketplace(snapshot.hotels).map((hotel) => {
+      const hotelWithMedia = withHotelListingMeta(withHotelMedia(hotel));
       const rooms = snapshot.rooms.filter((room) => room.hotelId === hotel.id);
       const minPrice = rooms.reduce(
         (current, room) => Math.min(current, room.pricePerNight),
@@ -424,17 +516,74 @@ function createApp() {
       );
       const availability = hotelAvailability(snapshot, hotel.id, checkInDate, checkOutDate);
       const roomsAvailable = availability.reduce((sum, room) => sum + room.availableUnits, 0);
+      const roomTypePreview = rooms.slice(0, 3).map((room) => room.category);
       return {
         ...hotelWithMedia,
         minPrice: Number.isFinite(minPrice) ? minPrice : 0,
-        roomsAvailable
+        roomsAvailable,
+        roomTypePreview
       };
     });
+
+    const destinationQuery = destination.toLowerCase();
+    hotels = hotels.filter((hotel) => {
+      const searchable = [
+        hotel.name,
+        hotel.location,
+        hotel.description,
+        hotel.propertyType,
+        ...(hotel.amenities || [])
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      if (destinationQuery && !searchable.includes(destinationQuery)) {
+        return false;
+      }
+      if (hotel.minPrice < minPriceFilter) {
+        return false;
+      }
+      if (maxPriceFilter && hotel.minPrice > maxPriceFilter) {
+        return false;
+      }
+
+      return true;
+    });
+
+    if (sortBy === "price_asc") {
+      hotels.sort((a, b) => a.minPrice - b.minPrice);
+    } else if (sortBy === "price_desc") {
+      hotels.sort((a, b) => b.minPrice - a.minPrice);
+    } else if (sortBy === "rating_desc") {
+      hotels.sort((a, b) => b.reviewScore - a.reviewScore);
+    } else if (sortBy === "distance") {
+      hotels.sort((a, b) => a.distanceToCenterKm - b.distanceToCenterKm);
+    } else {
+      hotels.sort((a, b) => {
+        const premiumBoost = Number(b.premiumListingActive) - Number(a.premiumListingActive);
+        if (premiumBoost !== 0) {
+          return premiumBoost;
+        }
+        return b.reviewScore - a.reviewScore;
+      });
+    }
 
     response.render("index", {
       hotels,
       checkInDate,
       checkOutDate,
+      search: {
+        destination,
+        adults,
+        rooms: roomsRequested,
+        minPrice: minPriceFilter || "",
+        maxPrice: maxPriceFilter || "",
+        sortBy
+      },
+      resultStats: {
+        count: hotels.length,
+        total: snapshot.hotels.length
+      },
       platform: snapshot.platform
     });
   });
@@ -442,6 +591,9 @@ function createApp() {
   app.get("/hotels/:hotelId", async (request, response) => {
     const checkInDate = request.query.checkInDate || isoDateOffset(1);
     const checkOutDate = request.query.checkOutDate || isoDateOffset(2);
+    const destination = String(request.query.destination || "Bonny Island").trim();
+    const adults = Math.max(1, toNumber(request.query.adults, 2));
+    const roomsRequested = Math.max(1, toNumber(request.query.rooms, 1));
     const snapshot = await getSnapshot();
     const hotel = snapshot.hotels.find((item) => item.id === request.params.hotelId);
 
@@ -453,10 +605,14 @@ function createApp() {
       return;
     }
 
-    const hotelWithMedia = withHotelMedia(hotel);
+    const hotelWithMedia = withHotelListingMeta(withHotelMedia(hotel));
     const rooms = snapshot.rooms
       .filter((room) => room.hotelId === hotel.id)
-      .map((room) => withRoomMedia(room));
+      .map((room) => withRoomDisplayMeta(withRoomMedia(room)));
+    const minPrice = rooms.reduce(
+      (current, room) => Math.min(current, room.pricePerNight),
+      Number.POSITIVE_INFINITY
+    );
     const availabilityByRoom = hotelAvailability(
       snapshot,
       hotel.id,
@@ -470,10 +626,18 @@ function createApp() {
     }));
 
     response.render("hotel", {
-      hotel: hotelWithMedia,
+      hotel: {
+        ...hotelWithMedia,
+        minPrice: Number.isFinite(minPrice) ? minPrice : 0
+      },
       rooms: roomCards,
       checkInDate,
       checkOutDate,
+      search: {
+        destination,
+        adults,
+        rooms: roomsRequested
+      },
       cancellationRules: getRefundPolicyRules(hotel.cancellationPolicy),
       platform: snapshot.platform
     });

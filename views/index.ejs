@@ -1,95 +1,147 @@
 <%- include("partials/header", { title: "Bonny Island Hotels" }) %>
 
-<section class="hero hero-visual">
-  <div class="hero-copy">
-    <p class="eyebrow">Bonny Island Hotel Booking</p>
-    <h1>Discover beautiful stays with real photos, live availability, and instant confirmation.</h1>
+<section class="booking-hero">
+  <div class="booking-hero-content">
+    <p class="eyebrow">Hut Stays</p>
+    <h1>Find your next stay in Bonny Island</h1>
     <p>
-      Browse curated hotels, compare room categories, and book in minutes with secure payment,
-      SMS/email acknowledgement, and clear refund rules.
+      Search by destination, compare top-rated properties, and book instantly with secure online
+      payment and live availability.
     </p>
   </div>
-  <div class="hero-image">
-    <% if (hotels.length) { %>
-      <img src="<%= hotels[0].coverImage %>" alt="<%= hotels[0].name %> preview image" />
-    <% } %>
-  </div>
-</section>
-
-<section class="card filter-card search-panel">
-  <form class="grid-form compact" method="GET" action="/">
-    <div>
+  <form class="booking-search-bar" method="GET" action="/">
+    <div class="booking-field wide">
+      <label for="destination">Destination</label>
+      <input
+        id="destination"
+        name="destination"
+        type="text"
+        value="<%= search.destination %>"
+        placeholder="Where are you going?"
+      />
+    </div>
+    <div class="booking-field">
       <label for="checkInDate">Check-in</label>
       <input id="checkInDate" type="date" name="checkInDate" value="<%= checkInDate %>" required />
     </div>
-    <div>
+    <div class="booking-field">
       <label for="checkOutDate">Check-out</label>
-      <input
-        id="checkOutDate"
-        type="date"
-        name="checkOutDate"
-        value="<%= checkOutDate %>"
-        required
-      />
+      <input id="checkOutDate" type="date" name="checkOutDate" value="<%= checkOutDate %>" required />
     </div>
-    <div class="align-end">
-      <button type="submit">Search stays</button>
+    <div class="booking-field">
+      <label for="adults">Adults</label>
+      <input id="adults" name="adults" type="number" min="1" value="<%= search.adults %>" />
+    </div>
+    <div class="booking-field">
+      <label for="rooms">Rooms</label>
+      <input id="rooms" name="rooms" type="number" min="1" value="<%= search.rooms %>" />
+    </div>
+    <div class="booking-field">
+      <label for="sort">Sort</label>
+      <select id="sort" name="sort">
+        <option value="recommended" <%= search.sortBy === "recommended" ? "selected" : "" %>>Recommended</option>
+        <option value="price_asc" <%= search.sortBy === "price_asc" ? "selected" : "" %>>Price (low to high)</option>
+        <option value="price_desc" <%= search.sortBy === "price_desc" ? "selected" : "" %>>Price (high to low)</option>
+        <option value="rating_desc" <%= search.sortBy === "rating_desc" ? "selected" : "" %>>Guest rating</option>
+        <option value="distance" <%= search.sortBy === "distance" ? "selected" : "" %>>Distance to center</option>
+      </select>
+    </div>
+    <div class="booking-field">
+      <label for="minPrice">Min price</label>
+      <input id="minPrice" name="minPrice" type="number" min="0" value="<%= search.minPrice %>" />
+    </div>
+    <div class="booking-field">
+      <label for="maxPrice">Max price</label>
+      <input id="maxPrice" name="maxPrice" type="number" min="0" value="<%= search.maxPrice %>" />
+    </div>
+    <div class="booking-field search-btn-wrap">
+      <button type="submit" class="search-btn">Search</button>
     </div>
   </form>
 </section>
 
-<section>
-  <div class="section-header">
-    <h2>Featured hotels in Bonny Island</h2>
-    <p class="muted">Premium properties and trusted options with visual room previews.</p>
-  </div>
-  <div class="cards hotel-grid">
+<section class="results-shell">
+  <aside class="card results-sidebar">
+    <h3>Search summary</h3>
+    <p class="muted"><strong><%= resultStats.count %></strong> properties found</p>
+    <ul class="summary-list">
+      <li>Destination: <strong><%= search.destination %></strong></li>
+      <li>Dates: <strong><%= checkInDate %> - <%= checkOutDate %></strong></li>
+      <li>Guests: <strong><%= search.adults %> adults, <%= search.rooms %> room(s)</strong></li>
+    </ul>
+    <hr />
+    <h4>Popular facilities</h4>
+    <div class="chip-list">
+      <span class="chip">Free WiFi</span>
+      <span class="chip">Breakfast</span>
+      <span class="chip">Airport pickup</span>
+      <span class="chip">Pool</span>
+      <span class="chip">Family rooms</span>
+      <span class="chip">Parking</span>
+    </div>
+  </aside>
+
+  <div class="results-list">
+    <div class="section-header">
+      <h2>Stays in <%= search.destination %></h2>
+      <p class="muted">
+        Showing <strong><%= resultStats.count %></strong> of <%= resultStats.total %> properties
+      </p>
+    </div>
+    <% if (!hotels.length) { %>
+      <article class="card">
+        <h3>No properties matched your search.</h3>
+        <p class="muted">Try changing destination, dates, or price filters.</p>
+      </article>
+    <% } %>
+
     <% hotels.forEach((hotel) => { %>
-      <article class="card hotel-card modern-card">
-        <a
-          class="hotel-media-wrap"
-          href="/hotels/<%= hotel.id %>?checkInDate=<%= checkInDate %>&checkOutDate=<%= checkOutDate %>"
-        >
-          <img class="hotel-media-img" src="<%= hotel.coverImage %>" alt="<%= hotel.name %> cover image" />
-          <% if (hotel.premiumListingActive) { %>
-            <span class="badge premium image-badge">Premium Listing</span>
-          <% } %>
+      <article class="search-result-card">
+        <a class="result-media" href="/hotels/<%= hotel.id %>?destination=<%= encodeURIComponent(search.destination) %>&checkInDate=<%= checkInDate %>&checkOutDate=<%= checkOutDate %>&adults=<%= search.adults %>&rooms=<%= search.rooms %>">
+          <img src="<%= hotel.coverImage %>" alt="<%= hotel.name %> cover image" />
         </a>
-        <div class="hotel-body">
-          <div class="card-head">
-            <h3><%= hotel.name %></h3>
+        <div class="result-main">
+          <div class="result-title-row">
+            <h3>
+              <a href="/hotels/<%= hotel.id %>?destination=<%= encodeURIComponent(search.destination) %>&checkInDate=<%= checkInDate %>&checkOutDate=<%= checkOutDate %>&adults=<%= search.adults %>&rooms=<%= search.rooms %>">
+                <%= hotel.name %>
+              </a>
+            </h3>
+            <% if (hotel.premiumListingActive) { %>
+              <span class="badge premium">Preferred Plus</span>
+            <% } %>
           </div>
-          <p class="muted"><%= hotel.location %></p>
+          <div class="result-meta muted">
+            <span><%= "★".repeat(hotel.starRating) %> <%= hotel.propertyType %></span>
+            <span><%= hotel.distanceToCenterKm %> km from center</span>
+          </div>
+          <p class="result-location"><%= hotel.location %></p>
           <p class="hotel-description"><%= hotel.description %></p>
-          <div class="stats">
-            <span>From <strong><%= formatNaira(hotel.minPrice) %></strong>/night</span>
-            <span><strong><%= hotel.roomsAvailable %></strong> available</span>
-          </div>
-          <div class="gallery-strip">
-            <% (hotel.galleryImages || []).slice(0, 3).forEach((image, index) => { %>
-              <img src="<%= image %>" alt="<%= hotel.name %> gallery image <%= index + 1 %>" />
+          <div class="result-amenities">
+            <% (hotel.amenities || []).slice(0, 3).forEach((item) => { %>
+              <span class="chip"><%= item %></span>
             <% }) %>
           </div>
-          <a
-            class="button-link full-width"
-            href="/hotels/<%= hotel.id %>?checkInDate=<%= checkInDate %>&checkOutDate=<%= checkOutDate %>"
-          >
-            View rooms & book
-          </a>
+          <div class="result-room-types muted tiny">
+            Room options: <%= hotel.roomTypePreview.join(", ") %>
+          </div>
+        </div>
+        <div class="result-side">
+          <div class="review-pill">
+            <div>
+              <p><%= hotel.reviewLabel %></p>
+              <span class="muted tiny"><%= hotel.reviewCount %> reviews</span>
+            </div>
+            <strong><%= hotel.reviewScore %></strong>
+          </div>
+          <p class="muted tiny"><%= hotel.roomsAvailable %> rooms left for your dates</p>
+          <p class="price">From <strong><%= formatNaira(hotel.minPrice) %></strong></p>
+          <p class="muted tiny">includes service charge at checkout</p>
+          <a class="button-link full-width" href="/hotels/<%= hotel.id %>?destination=<%= encodeURIComponent(search.destination) %>&checkInDate=<%= checkInDate %>&checkOutDate=<%= checkOutDate %>&adults=<%= search.adults %>&rooms=<%= search.rooms %>">See availability</a>
         </div>
       </article>
     <% }) %>
   </div>
-</section>
-
-<section class="card ideas">
-  <h3>Experience upgrades included</h3>
-  <ul>
-    <li>Photo-led listing cards for better booking confidence.</li>
-    <li>Real-time availability and double-booking prevention.</li>
-    <li>Fraud scoring for safer guest and hotel transactions.</li>
-    <li>Emergency contact capture and pickup add-on support.</li>
-  </ul>
 </section>
 
 <%- include("partials/footer", { platform }) %>
