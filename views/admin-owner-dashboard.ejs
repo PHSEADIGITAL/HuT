@@ -1,0 +1,86 @@
+<%- include("partials/header", { title: "Owner Revenue Dashboard" }) %>
+
+<section class="hero small">
+  <h1>Platform Owner Dashboard</h1>
+  <p>One place for all hotel transactions, commissions, and platform revenue streams.</p>
+</section>
+
+<section class="stats-grid">
+  <article class="card">
+    <h3>Total payment records</h3>
+    <p class="metric"><%= summary.paymentCount %></p>
+  </article>
+  <article class="card">
+    <h3>Hotel transactions</h3>
+    <p class="metric"><%= summary.hotelTransactionCount %></p>
+  </article>
+  <article class="card">
+    <h3>Gross hotel volume</h3>
+    <p class="metric"><%= formatNaira(summary.grossHotelVolume) %></p>
+  </article>
+  <article class="card">
+    <h3>Hotel payouts</h3>
+    <p class="metric"><%= formatNaira(summary.totalHotelPayouts) %></p>
+  </article>
+  <article class="card">
+    <h3>Booking commissions</h3>
+    <p class="metric"><%= formatNaira(summary.commissionRevenue) %></p>
+  </article>
+  <article class="card">
+    <h3>Premium subscriptions</h3>
+    <p class="metric"><%= formatNaira(summary.premiumRevenue) %></p>
+  </article>
+  <article class="card">
+    <h3>Marketplace unlock fees</h3>
+    <p class="metric"><%= formatNaira(summary.marketplaceRevenue) %></p>
+  </article>
+  <article class="card">
+    <h3>Net platform revenue</h3>
+    <p class="metric"><%= formatNaira(summary.netPlatformRevenue) %></p>
+  </article>
+  <article class="card">
+    <h3>User wallet liability</h3>
+    <p class="metric"><%= formatNaira(summary.walletLiability) %></p>
+  </article>
+</section>
+
+<section class="card">
+  <h2>All transactions (hotel + platform)</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Type</th>
+          <th>Hotel</th>
+          <th>User</th>
+          <th>Reference</th>
+          <th>Provider</th>
+          <th>Gross</th>
+          <th>Hotel Payout</th>
+          <th>Platform Earning</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!paymentRows.length) { %>
+          <tr><td colspan="9" class="muted">No transaction records available.</td></tr>
+        <% } %>
+        <% paymentRows.forEach((payment) => { %>
+          <tr>
+            <td><%= payment.createdAt %></td>
+            <td><%= payment.transactionType %></td>
+            <td><%= payment.hotelName %></td>
+            <td><%= payment.userName %></td>
+            <td><%= payment.transactionRef %></td>
+            <td><%= payment.paymentProvider || "-" %></td>
+            <td><%= formatNaira(payment.grossAmount) %></td>
+            <td><%= formatNaira(payment.hotelPayout) %></td>
+            <td><%= formatNaira(payment.platformEarning) %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<%- include("partials/footer", { platform }) %>

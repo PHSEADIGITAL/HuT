@@ -26,6 +26,21 @@ function ensureDataShape(data) {
   if (!Array.isArray(data.users)) {
     data.users = [];
   }
+  if (!Array.isArray(data.marketplaceListings)) {
+    data.marketplaceListings = [];
+  }
+  if (!Array.isArray(data.marketplaceUnlocks)) {
+    data.marketplaceUnlocks = [];
+  }
+  if (!Array.isArray(data.walletTransactions)) {
+    data.walletTransactions = [];
+  }
+
+  for (const user of data.users) {
+    if (!Number.isFinite(user.walletBalance)) {
+      user.walletBalance = 0;
+    }
+  }
 }
 
 async function loadData() {

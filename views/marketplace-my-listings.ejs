@@ -1,0 +1,55 @@
+<%- include("partials/header", { title: "My Marketplace Listings" }) %>
+
+<section class="hero small">
+  <h1>My marketplace listings</h1>
+  <p>Manage your items and monitor your monthly listing quota.</p>
+</section>
+
+<section class="stats-grid">
+  <article class="card">
+    <h3>Used this month</h3>
+    <p class="metric"><%= limitState.used %> / 4</p>
+  </article>
+  <article class="card">
+    <h3>Remaining</h3>
+    <p class="metric"><%= limitState.remaining %></p>
+  </article>
+  <article class="card">
+    <h3>Total listings</h3>
+    <p class="metric"><%= listings.length %></p>
+  </article>
+</section>
+
+<section class="card">
+  <div class="marketplace-actions">
+    <a class="button-link" href="/marketplace/new">Create new listing</a>
+    <a class="ghost-link" href="/marketplace">Open marketplace</a>
+  </div>
+</section>
+
+<section class="marketplace-grid">
+  <% if (!listings.length) { %>
+    <article class="card">
+      <p class="muted">You have not listed any item yet.</p>
+    </article>
+  <% } %>
+  <% listings.forEach((listing) => { %>
+    <article class="card market-item-card">
+      <a href="/marketplace/listings/<%= listing.id %>">
+        <img src="<%= listing.primaryImage %>" alt="<%= listing.title %>" class="market-item-image" />
+      </a>
+      <div class="market-item-body">
+        <h3><a href="/marketplace/listings/<%= listing.id %>"><%= listing.title %></a></h3>
+        <p class="muted tiny">Status: <strong><%= listing.status %></strong></p>
+        <p class="market-price"><%= formatNaira(listing.price) %></p>
+        <% if (listing.status === "active") { %>
+          <form method="POST" action="/marketplace/listings/<%= listing.id %>/mark-sold">
+            <button type="submit" class="ghost-btn">Mark as sold</button>
+          </form>
+        <% } %>
+      </div>
+    </article>
+  <% }) %>
+</section>
+
+<%- include("partials/footer", { platform }) %>

@@ -1,0 +1,88 @@
+<%- include("partials/header", { title: "Marketplace" }) %>
+
+<section class="hero small">
+  <h1>Bonny Island Marketplace</h1>
+  <p>Buy and sell second-hand items. Sellers can list up to 4 items monthly.</p>
+</section>
+
+<section class="card">
+  <div class="marketplace-actions">
+    <form class="grid-form compact" method="GET" action="/marketplace">
+      <div>
+        <label for="q">Search</label>
+        <input id="q" name="q" value="<%= filters.q %>" placeholder="Phone, furniture, electronics..." />
+      </div>
+      <div>
+        <label for="category">Category</label>
+        <select id="category" name="category">
+          <option value="">All categories</option>
+          <% categories.forEach((category) => { %>
+            <option value="<%= category %>" <%= filters.category === category ? "selected" : "" %>><%= category %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div>
+        <label for="condition">Condition</label>
+        <select id="condition" name="condition">
+          <option value="">All</option>
+          <option value="Used" <%= filters.condition === "Used" ? "selected" : "" %>>Used</option>
+          <option value="Like New" <%= filters.condition === "Like New" ? "selected" : "" %>>Like New</option>
+          <option value="Refurbished" <%= filters.condition === "Refurbished" ? "selected" : "" %>>Refurbished</option>
+        </select>
+      </div>
+      <div>
+        <label for="minPrice">Min price</label>
+        <input id="minPrice" name="minPrice" type="number" min="0" value="<%= filters.minPrice %>" />
+      </div>
+      <div>
+        <label for="maxPrice">Max price</label>
+        <input id="maxPrice" name="maxPrice" type="number" min="0" value="<%= filters.maxPrice %>" />
+      </div>
+      <div>
+        <label for="sort">Sort</label>
+        <select id="sort" name="sort">
+          <option value="newest" <%= filters.sort === "newest" ? "selected" : "" %>>Newest</option>
+          <option value="price_asc" <%= filters.sort === "price_asc" ? "selected" : "" %>>Price low-high</option>
+          <option value="price_desc" <%= filters.sort === "price_desc" ? "selected" : "" %>>Price high-low</option>
+        </select>
+      </div>
+      <div class="align-end">
+        <button type="submit">Apply filters</button>
+      </div>
+    </form>
+
+    <div class="marketplace-cta">
+      <% if (currentUser) { %>
+        <a class="button-link" href="/marketplace/new">Create listing</a>
+        <a class="ghost-link" href="/marketplace/my-listings">My listings</a>
+        <a class="ghost-link" href="/wallet">Wallet (<%= formatNaira(walletBalance || 0) %>)</a>
+      <% } else { %>
+        <a class="button-link" href="/auth/login?next=%2Fmarketplace">Sign in to sell</a>
+      <% } %>
+    </div>
+  </div>
+</section>
+
+<section class="marketplace-grid">
+  <% if (!listings.length) { %>
+    <article class="card">
+      <h3>No items found.</h3>
+      <p class="muted">Try adjusting your filter settings.</p>
+    </article>
+  <% } %>
+  <% listings.forEach((listing) => { %>
+    <article class="card market-item-card">
+      <a href="/marketplace/listings/<%= listing.id %>">
+        <img src="<%= listing.primaryImage %>" alt="<%= listing.title %>" class="market-item-image" />
+      </a>
+      <div class="market-item-body">
+        <h3><a href="/marketplace/listings/<%= listing.id %>"><%= listing.title %></a></h3>
+        <p class="muted"><%= listing.category %> • <%= listing.condition %></p>
+        <p class="market-price"><%= formatNaira(listing.price) %></p>
+        <p class="muted tiny">Seller: <%= listing.sellerName %> • Contact hidden until unlock (<%= formatNaira(contactUnlockFeeNaira) %>)</p>
+      </div>
+    </article>
+  <% }) %>
+</section>
+
+<%- include("partials/footer", { platform }) %>

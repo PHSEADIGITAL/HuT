@@ -133,6 +133,7 @@
       "name": "Hut Platform Owner",
       "email": "owner@hut.app",
       "phone": "+2348030000001",
+      "walletBalance": 0,
       "passwordHash": "scrypt$309c91bc7d91fc043c8fb3cc7d4d870f$4e2f5d5e0d74e7a3cdd4b24b21a98d9be417870fa107875bcc10b6321f64ccf68280773a3d978de1b2f817b2c76f803fcdb2c61dadb023040e9b857c3337544f",
       "createdAt": "2026-02-01T09:00:00.000Z"
     },
@@ -142,6 +143,7 @@
       "name": "Seaside Admin",
       "email": "admin@seaside.hut",
       "phone": "+2348030000101",
+      "walletBalance": 0,
       "hotelIds": [
         "hotel-seaside-grand"
       ],
@@ -154,6 +156,7 @@
       "name": "Bonny Suites Admin",
       "email": "admin@bonnysuites.hut",
       "phone": "+2348030000102",
+      "walletBalance": 0,
       "hotelIds": [
         "hotel-bonny-suites"
       ],
@@ -166,6 +169,7 @@
       "name": "Creekside Admin",
       "email": "admin@creekside.hut",
       "phone": "+2348030000103",
+      "walletBalance": 0,
       "hotelIds": [
         "hotel-creekside-lodge"
       ],
@@ -178,10 +182,60 @@
       "name": "Demo Customer",
       "email": "customer@hut.app",
       "phone": "+2348030000201",
+      "walletBalance": 1500,
       "passwordHash": "scrypt$7e07c8e286e05ee71976e05286393612$211ebd6ce6cb6d83e7a7420abd76e0d47df326789ac57860ff0fca0d5b6d873ef5d683571f1ece8cb8dba41bb2bff710a1347324aa49464980de7e56fdd3d4e4",
       "createdAt": "2026-02-03T09:45:00.000Z"
     }
   ],
+  "marketplaceListings": [
+    {
+      "id": "listing-used-iphone-13",
+      "sellerUserId": "user-demo-customer",
+      "title": "Used iPhone 13 (128GB)",
+      "description": "Neatly used iPhone 13, 88% battery health, no cracks, with original charger.",
+      "category": "Electronics",
+      "condition": "Used",
+      "price": 390000,
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&q=80"
+      ],
+      "status": "active",
+      "monthKey": "2026-02",
+      "createdAt": "2026-02-10T08:30:00.000Z"
+    },
+    {
+      "id": "listing-dining-set",
+      "sellerUserId": "user-demo-customer",
+      "title": "6-seater Dining Table Set",
+      "description": "Strong wooden dining set in excellent condition, suitable for family homes.",
+      "category": "Furniture",
+      "condition": "Like New",
+      "price": 180000,
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80"
+      ],
+      "status": "active",
+      "monthKey": "2026-02",
+      "createdAt": "2026-02-14T10:15:00.000Z"
+    },
+    {
+      "id": "listing-ps4-console",
+      "sellerUserId": "user-demo-customer",
+      "title": "PlayStation 4 Console + 2 Controllers",
+      "description": "PS4 in good working condition, includes FIFA 24 disc and two controllers.",
+      "category": "Gaming",
+      "condition": "Used",
+      "price": 165000,
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1486401899868-0e435ed85128?auto=format&fit=crop&w=1200&q=80"
+      ],
+      "status": "active",
+      "monthKey": "2026-02",
+      "createdAt": "2026-02-20T14:45:00.000Z"
+    }
+  ],
+  "marketplaceUnlocks": [],
+  "walletTransactions": [],
   "bookings": [],
   "payments": [],
   "notifications": [],

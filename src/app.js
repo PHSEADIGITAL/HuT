@@ -1,9 +1,11 @@
 require("dotenv").config();
 
 const path = require("path");
+const fs = require("fs");
 const { randomUUID } = require("crypto");
 const express = require("express");
 const session = require("express-session");
+const multer = require("multer");
 const {
   appName,
   baseUrl,
@@ -230,6 +232,154 @@ function withRoomDisplayMeta(room) {
   };
 }
 
+const marketplaceListingLimitPerMonth = 4;
+const contactUnlockFeeNaira = 200;
+const marketplaceUploadDir = path.join(
+  __dirname,
+  "..",
+  "public",
+  "uploads",
+  "marketplace"
+);
+const marketplaceFallbackImage =
+  "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1200&q=80";
+
+fs.mkdirSync(marketplaceUploadDir, { recursive: true });
+
+const marketplaceUpload = multer({
+  storage: multer.diskStorage({
+    destination: (request, file, callback) => {
+      callback(null, marketplaceUploadDir);
+    },
+    filename: (request, file, callback) => {
+      const extension = path.extname(file.originalname || "").toLowerCase() || ".jpg";
+      callback(null, `${Date.now()}-${randomUUID()}${extension}`);
+    }
+  }),
+  limits: {
+    files: 4,
+    fileSize: 5 * 1024 * 1024
+  },
+  fileFilter: (request, file, callback) => {
+    if (!file.mimetype || !file.mimetype.startsWith("image/")) {
+      callback(new Error("Only image uploads are supported."));
+      return;
+    }
+    callback(null, true);
+  }
+});
+
+function toMonthKey(dateValue = new Date()) {
+  const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function maskPhone(phone) {
+  const text = String(phone || "").trim();
+  if (!text) {
+    return "Hidden";
+  }
+  if (text.length <= 6) {
+    return `${text.slice(0, 2)}****`;
+  }
+  return `${text.slice(0, 4)}****${text.slice(-2)}`;
+}
+
+function sanitizeMarketplaceText(value, fallback = "") {
+  return String(value || fallback).trim();
+}
+
+function ensureUserWallet(user) {
+  if (!user) {
+    return;
+  }
+  if (!Number.isFinite(user.walletBalance)) {
+    user.walletBalance = 0;
+  }
+}
+
+function createWalletEntry(data, {
+  userId,
+  type,
+  direction,
+  amount,
+  description,
+  reference,
+  relatedListingId = null,
+  relatedPaymentId = null
+}) {
+  const user = data.users.find((item) => item.id === userId);
+  if (!user) {
+    return { error: "Wallet owner not found." };
+  }
+
+  ensureUserWallet(user);
+  const signedAmount = direction === "debit" ? -Math.abs(amount) : Math.abs(amount);
+  const nextBalance = user.walletBalance + signedAmount;
+  if (nextBalance < 0) {
+    return { error: "Insufficient wallet balance." };
+  }
+
+  user.walletBalance = Number(nextBalance.toFixed(2));
+
+  const entry = {
+    id: randomUUID(),
+    userId,
+    type,
+    direction,
+    amount: Math.abs(amount),
+    signedAmount,
+    description,
+    reference,
+    relatedListingId,
+    relatedPaymentId,
+    balanceAfter: user.walletBalance,
+    createdAt: new Date().toISOString()
+  };
+  data.walletTransactions.push(entry);
+  return { entry, balanceAfter: user.walletBalance };
+}
+
+function countMonthlyListings(data, userId, monthKey) {
+  return data.marketplaceListings.filter(
+    (listing) => listing.sellerUserId === userId && listing.monthKey === monthKey
+  ).length;
+}
+
+function canCreateMarketplaceListing(data, userId, dateValue = new Date()) {
+  const monthKey = toMonthKey(dateValue);
+  const used = countMonthlyListings(data, userId, monthKey);
+  return {
+    used,
+    remaining: Math.max(0, marketplaceListingLimitPerMonth - used),
+    monthKey,
+    allowed: used < marketplaceListingLimitPerMonth
+  };
+}
+
+function listingPrimaryImage(listing) {
+  if (Array.isArray(listing.imageUrls) && listing.imageUrls.length) {
+    return listing.imageUrls[0];
+  }
+  return marketplaceFallbackImage;
+}
+
+function enrichMarketplaceListing(data, listing) {
+  const seller = data.users.find((user) => user.id === listing.sellerUserId);
+  return {
+    ...listing,
+    primaryImage: listingPrimaryImage(listing),
+    sellerName: seller ? seller.name : "Unknown seller",
+    sellerPhoneMasked: seller ? maskPhone(seller.phone) : "Hidden"
+  };
+}
+
+function hasUnlockedSellerContact(data, listingId, buyerUserId) {
+  return data.marketplaceUnlocks.some(
+    (unlock) => unlock.listingId === listingId && unlock.buyerUserId === buyerUserId
+  );
+}
+
 function canViewBooking(user, booking) {
   if (!user) {
     return false;
@@ -313,6 +463,8 @@ async function markBookingAsPaid({
     id: randomUUID(),
     bookingId: booking.id,
     hotelId: hotel.id,
+    userId: booking.customerUserId || null,
+    listingId: null,
     transactionRef: transactionReference,
     transactionType: "booking_payment",
     paymentProvider,
@@ -1072,6 +1224,8 @@ function createApp() {
           id: randomUUID(),
           bookingId: booking.id,
           hotelId: booking.hotelId,
+          userId: booking.customerUserId || null,
+          listingId: null,
           transactionRef: `HUT-RFND-${Date.now()}`,
           transactionType: "refund",
           paymentProvider: booking.paymentProvider || "n/a",
@@ -1105,6 +1259,503 @@ function createApp() {
         result.error || "Booking cancelled successfully."
       );
       response.redirect(`/bookings/${bookingId}/manage?message=${message}`);
+    }
+  );
+
+  app.get("/wallet", requireAuth, async (request, response) => {
+    const snapshot = await getSnapshot();
+    const user = snapshot.users.find((item) => item.id === request.currentUser.id);
+    if (!user) {
+      response.status(404).render("error", {
+        message: "Wallet user not found.",
+        platform: snapshot.platform
+      });
+      return;
+    }
+
+    ensureUserWallet(user);
+    const transactions = snapshot.walletTransactions
+      .filter((entry) => entry.userId === user.id)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const unlocks = snapshot.marketplaceUnlocks
+      .filter((unlock) => unlock.buyerUserId === user.id)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    response.render("wallet", {
+      walletUser: user,
+      walletTransactions: transactions,
+      unlocks,
+      contactUnlockFeeNaira,
+      platform: snapshot.platform
+    });
+  });
+
+  app.post("/wallet/topup", requireAuth, async (request, response) => {
+    const amount = Math.round(toNumber(request.body.amount, 0));
+    const reference = sanitizeMarketplaceText(request.body.reference, `BANK-${Date.now()}`);
+
+    if (amount <= 0) {
+      setFlash(request, "error", "Top-up amount must be greater than zero.");
+      response.redirect("/wallet");
+      return;
+    }
+
+    const result = await withWriteLock(async (data) => {
+      const user = data.users.find((item) => item.id === request.currentUser.id);
+      if (!user) {
+        return { error: "Wallet user not found." };
+      }
+
+      const paymentId = randomUUID();
+      const walletEntryResult = createWalletEntry(data, {
+        userId: user.id,
+        type: "wallet_topup",
+        direction: "credit",
+        amount,
+        description: "Wallet top-up via transfer to platform account",
+        reference,
+        relatedPaymentId: paymentId
+      });
+      if (walletEntryResult.error) {
+        return { error: walletEntryResult.error };
+      }
+
+      data.payments.push({
+        id: paymentId,
+        bookingId: null,
+        hotelId: null,
+        userId: user.id,
+        listingId: null,
+        transactionRef: `HUT-WTOP-${Date.now()}`,
+        transactionType: "wallet_topup",
+        paymentProvider: "bank_transfer",
+        paymentExternalId: reference,
+        grossAmount: amount,
+        hotelPayout: 0,
+        platformEarning: 0,
+        commissionRate: 0,
+        hotelBankAccount: null,
+        platformBankAccount: data.platform.bankAccount,
+        createdAt: new Date().toISOString()
+      });
+
+      return { balanceAfter: walletEntryResult.balanceAfter };
+    });
+
+    if (result.error) {
+      setFlash(request, "error", result.error);
+      response.redirect("/wallet");
+      return;
+    }
+
+    setFlash(
+      request,
+      "success",
+      `Wallet funded successfully. New balance: ${formatNaira(result.balanceAfter)}`
+    );
+    response.redirect("/wallet");
+  });
+
+  app.get("/marketplace", async (request, response) => {
+    const snapshot = await getSnapshot();
+    const query = sanitizeMarketplaceText(request.query.q, "");
+    const category = sanitizeMarketplaceText(request.query.category, "");
+    const condition = sanitizeMarketplaceText(request.query.condition, "");
+    const minPrice = Math.max(0, toNumber(request.query.minPrice, 0));
+    const maxPriceRaw = toNumber(request.query.maxPrice, 0);
+    const maxPrice = maxPriceRaw > 0 ? maxPriceRaw : null;
+    const sortInput = sanitizeMarketplaceText(request.query.sort, "newest");
+    const sort = ["newest", "price_asc", "price_desc"].includes(sortInput)
+      ? sortInput
+      : "newest";
+
+    let listings = snapshot.marketplaceListings
+      .filter((item) => item.status === "active")
+      .map((item) => enrichMarketplaceListing(snapshot, item));
+
+    const searchableQuery = query.toLowerCase();
+    if (searchableQuery) {
+      listings = listings.filter((listing) =>
+        `${listing.title} ${listing.description} ${listing.category}`
+          .toLowerCase()
+          .includes(searchableQuery)
+      );
+    }
+    if (category) {
+      listings = listings.filter((listing) => listing.category === category);
+    }
+    if (condition) {
+      listings = listings.filter((listing) => listing.condition === condition);
+    }
+    if (minPrice > 0) {
+      listings = listings.filter((listing) => listing.price >= minPrice);
+    }
+    if (maxPrice) {
+      listings = listings.filter((listing) => listing.price <= maxPrice);
+    }
+
+    if (sort === "price_asc") {
+      listings.sort((a, b) => a.price - b.price);
+    } else if (sort === "price_desc") {
+      listings.sort((a, b) => b.price - a.price);
+    } else {
+      listings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }
+
+    const categories = [...new Set(snapshot.marketplaceListings.map((item) => item.category))].filter(
+      Boolean
+    );
+
+    let walletBalance = null;
+    if (request.currentUser) {
+      const currentUser = snapshot.users.find((user) => user.id === request.currentUser.id);
+      if (currentUser) {
+        ensureUserWallet(currentUser);
+        walletBalance = currentUser.walletBalance;
+      }
+    }
+
+    response.render("marketplace-index", {
+      listings,
+      categories,
+      filters: {
+        q: query,
+        category,
+        condition,
+        minPrice: minPrice || "",
+        maxPrice: maxPrice || "",
+        sort
+      },
+      walletBalance,
+      contactUnlockFeeNaira,
+      platform: snapshot.platform
+    });
+  });
+
+  app.get("/marketplace/new", requireAuth, async (request, response) => {
+    const snapshot = await getSnapshot();
+    const limitState = canCreateMarketplaceListing(snapshot, request.currentUser.id);
+    response.render("marketplace-new", {
+      limitState,
+      platform: snapshot.platform
+    });
+  });
+
+  app.post(
+    "/marketplace/listings",
+    requireAuth,
+    marketplaceUpload.array("images", 4),
+    async (request, response) => {
+      const title = sanitizeMarketplaceText(request.body.title);
+      const description = sanitizeMarketplaceText(request.body.description);
+      const category = sanitizeMarketplaceText(request.body.category, "General");
+      const condition = sanitizeMarketplaceText(request.body.condition, "Used");
+      const price = Math.max(0, Math.round(toNumber(request.body.price, 0)));
+      const requestedImageUrls = normalizeImageArray(request.body.imageUrls);
+      const uploadedImageUrls = (request.files || []).map(
+        (file) => `/uploads/marketplace/${file.filename}`
+      );
+      const imageUrls = [...uploadedImageUrls, ...requestedImageUrls].slice(0, 6);
+
+      if (!title || !description || price <= 0) {
+        setFlash(request, "error", "Title, description, and valid price are required.");
+        response.redirect("/marketplace/new");
+        return;
+      }
+
+      const result = await withWriteLock(async (data) => {
+        const seller = data.users.find((user) => user.id === request.currentUser.id);
+        if (!seller) {
+          return { error: "Seller account not found." };
+        }
+
+        const limitState = canCreateMarketplaceListing(data, seller.id);
+        if (!limitState.allowed) {
+          return {
+            error: `Monthly listing limit reached. You can only create ${marketplaceListingLimitPerMonth} listings per month.`
+          };
+        }
+
+        const listing = {
+          id: randomUUID(),
+          sellerUserId: seller.id,
+          title,
+          description,
+          category,
+          condition,
+          price,
+          imageUrls: imageUrls.length ? imageUrls : [marketplaceFallbackImage],
+          status: "active",
+          monthKey: limitState.monthKey,
+          createdAt: new Date().toISOString()
+        };
+        data.marketplaceListings.push(listing);
+        return { listingId: listing.id };
+      });
+
+      if (result.error) {
+        setFlash(request, "error", result.error);
+        response.redirect("/marketplace/new");
+        return;
+      }
+
+      setFlash(request, "success", "Item listed successfully on the marketplace.");
+      response.redirect(`/marketplace/listings/${result.listingId}`);
+    }
+  );
+
+  app.get("/marketplace/my-listings", requireAuth, async (request, response) => {
+    const snapshot = await getSnapshot();
+    const listings = snapshot.marketplaceListings
+      .filter((item) => item.sellerUserId === request.currentUser.id)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .map((item) => enrichMarketplaceListing(snapshot, item));
+    const limitState = canCreateMarketplaceListing(snapshot, request.currentUser.id);
+    response.render("marketplace-my-listings", {
+      listings,
+      limitState,
+      platform: snapshot.platform
+    });
+  });
+
+  app.post("/marketplace/listings/:listingId/mark-sold", requireAuth, async (request, response) => {
+    const listingId = request.params.listingId;
+    const result = await withWriteLock(async (data) => {
+      const listing = data.marketplaceListings.find((item) => item.id === listingId);
+      if (!listing) {
+        return { error: "Listing not found." };
+      }
+      if (listing.sellerUserId !== request.currentUser.id) {
+        return { error: "Only the seller can update listing status." };
+      }
+      listing.status = "sold";
+      listing.soldAt = new Date().toISOString();
+      return { ok: true };
+    });
+
+    if (result.error) {
+      setFlash(request, "error", result.error);
+    } else {
+      setFlash(request, "success", "Listing marked as sold.");
+    }
+    response.redirect("/marketplace/my-listings");
+  });
+
+  app.get("/marketplace/listings/:listingId", async (request, response) => {
+    const snapshot = await getSnapshot();
+    const listing = snapshot.marketplaceListings.find(
+      (item) => item.id === request.params.listingId
+    );
+    if (!listing) {
+      response.status(404).render("error", {
+        message: "Marketplace listing not found.",
+        platform: snapshot.platform
+      });
+      return;
+    }
+
+    const enrichedListing = enrichMarketplaceListing(snapshot, listing);
+    const seller = snapshot.users.find((user) => user.id === listing.sellerUserId);
+    const isSeller = request.currentUser && request.currentUser.id === listing.sellerUserId;
+    const isPlatformAdmin =
+      request.currentUser && request.currentUser.role === "platform_admin";
+    const hasUnlocked =
+      request.currentUser &&
+      hasUnlockedSellerContact(snapshot, listing.id, request.currentUser.id);
+    const canViewContact = Boolean(isSeller || isPlatformAdmin || hasUnlocked);
+    const canUnlock = Boolean(
+      request.currentUser &&
+      !isSeller &&
+      !isPlatformAdmin &&
+      !hasUnlocked &&
+      listing.status === "active"
+    );
+
+    let walletBalance = null;
+    if (request.currentUser) {
+      const currentUser = snapshot.users.find((user) => user.id === request.currentUser.id);
+      if (currentUser) {
+        ensureUserWallet(currentUser);
+        walletBalance = currentUser.walletBalance;
+      }
+    }
+
+    const relatedListings = snapshot.marketplaceListings
+      .filter(
+        (item) =>
+          item.id !== listing.id &&
+          item.status === "active" &&
+          (item.category === listing.category || item.sellerUserId === listing.sellerUserId)
+      )
+      .slice(0, 6)
+      .map((item) => enrichMarketplaceListing(snapshot, item));
+
+    response.render("marketplace-detail", {
+      listing: enrichedListing,
+      seller,
+      canViewContact,
+      canUnlock,
+      walletBalance,
+      contactUnlockFeeNaira,
+      relatedListings,
+      platform: snapshot.platform
+    });
+  });
+
+  app.post(
+    "/marketplace/listings/:listingId/unlock-contact",
+    requireAuth,
+    async (request, response) => {
+      const listingId = request.params.listingId;
+      const result = await withWriteLock(async (data) => {
+        const listing = data.marketplaceListings.find((item) => item.id === listingId);
+        if (!listing || listing.status !== "active") {
+          return { error: "Listing not available for contact unlock." };
+        }
+
+        if (listing.sellerUserId === request.currentUser.id) {
+          return { error: "You already own this listing." };
+        }
+
+        const buyer = data.users.find((item) => item.id === request.currentUser.id);
+        if (!buyer) {
+          return { error: "Buyer account not found." };
+        }
+        ensureUserWallet(buyer);
+
+        const existingUnlock = data.marketplaceUnlocks.find(
+          (unlock) =>
+            unlock.listingId === listingId && unlock.buyerUserId === request.currentUser.id
+        );
+        if (existingUnlock) {
+          return { ok: true, alreadyUnlocked: true };
+        }
+
+        if (buyer.walletBalance < contactUnlockFeeNaira) {
+          return {
+            error: `Insufficient wallet balance. Fund your wallet with at least ${formatNaira(
+              contactUnlockFeeNaira
+            )}.`
+          };
+        }
+
+        const paymentId = randomUUID();
+        const walletResult = createWalletEntry(data, {
+          userId: buyer.id,
+          type: "contact_unlock",
+          direction: "debit",
+          amount: contactUnlockFeeNaira,
+          description: "Marketplace seller contact unlock fee",
+          reference: `UNLOCK-${listing.id.slice(0, 8)}-${Date.now()}`,
+          relatedListingId: listing.id,
+          relatedPaymentId: paymentId
+        });
+        if (walletResult.error) {
+          return { error: walletResult.error };
+        }
+
+        data.marketplaceUnlocks.push({
+          id: randomUUID(),
+          listingId: listing.id,
+          buyerUserId: buyer.id,
+          sellerUserId: listing.sellerUserId,
+          fee: contactUnlockFeeNaira,
+          createdAt: new Date().toISOString()
+        });
+
+        data.payments.push({
+          id: paymentId,
+          bookingId: null,
+          hotelId: null,
+          userId: buyer.id,
+          listingId: listing.id,
+          transactionRef: `HUT-MKT-${Date.now()}`,
+          transactionType: "marketplace_contact_unlock",
+          paymentProvider: "wallet",
+          paymentExternalId: `WALLET-${buyer.id}`,
+          grossAmount: contactUnlockFeeNaira,
+          hotelPayout: 0,
+          platformEarning: contactUnlockFeeNaira,
+          commissionRate: 0,
+          hotelBankAccount: null,
+          platformBankAccount: data.platform.bankAccount,
+          createdAt: new Date().toISOString()
+        });
+
+        return { ok: true };
+      });
+
+      if (result.error) {
+        setFlash(request, "error", result.error);
+      } else if (result.alreadyUnlocked) {
+        setFlash(request, "success", "Contact already unlocked for this listing.");
+      } else {
+        setFlash(request, "success", "Seller contact unlocked successfully.");
+      }
+
+      response.redirect(`/marketplace/listings/${listingId}`);
+    }
+  );
+
+  app.get(
+    "/admin/owner-dashboard",
+    requireRoles(["platform_admin"]),
+    async (request, response) => {
+      const snapshot = await getSnapshot();
+      const hotelMap = new Map(snapshot.hotels.map((hotel) => [hotel.id, hotel]));
+      const userMap = new Map(snapshot.users.map((user) => [user.id, user]));
+
+      const allPayments = [...snapshot.payments].sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+      );
+      const hotelTransactions = allPayments.filter((payment) => payment.hotelId);
+
+      const commissionRevenue = allPayments
+        .filter((payment) => payment.transactionType === "booking_payment")
+        .reduce((sum, payment) => sum + payment.platformEarning, 0);
+      const premiumRevenue = allPayments
+        .filter((payment) => payment.transactionType === "premium_subscription")
+        .reduce((sum, payment) => sum + payment.platformEarning, 0);
+      const marketplaceRevenue = allPayments
+        .filter((payment) => payment.transactionType === "marketplace_contact_unlock")
+        .reduce((sum, payment) => sum + payment.platformEarning, 0);
+      const netPlatformRevenue = allPayments
+        .filter((payment) => payment.transactionType !== "wallet_topup")
+        .reduce((sum, payment) => sum + payment.platformEarning, 0);
+      const grossHotelVolume = hotelTransactions.reduce(
+        (sum, payment) => sum + payment.grossAmount,
+        0
+      );
+      const totalHotelPayouts = hotelTransactions.reduce(
+        (sum, payment) => sum + payment.hotelPayout,
+        0
+      );
+      const walletLiability = snapshot.users.reduce(
+        (sum, user) => sum + (Number.isFinite(user.walletBalance) ? user.walletBalance : 0),
+        0
+      );
+
+      const paymentRows = allPayments.map((payment) => ({
+        ...payment,
+        hotelName: payment.hotelId ? (hotelMap.get(payment.hotelId)?.name || "Unknown hotel") : "-",
+        userName: payment.userId ? (userMap.get(payment.userId)?.name || "Unknown user") : "-"
+      }));
+
+      response.render("admin-owner-dashboard", {
+        summary: {
+          paymentCount: allPayments.length,
+          hotelTransactionCount: hotelTransactions.length,
+          grossHotelVolume,
+          totalHotelPayouts,
+          commissionRevenue,
+          premiumRevenue,
+          marketplaceRevenue,
+          netPlatformRevenue,
+          walletLiability
+        },
+        paymentRows,
+        platform: snapshot.platform
+      });
     }
   );
 
@@ -1252,6 +1903,8 @@ function createApp() {
             id: randomUUID(),
             bookingId: null,
             hotelId: hotel.id,
+            userId: request.currentUser.id,
+            listingId: null,
             transactionRef: `HUT-PREM-${Date.now()}`,
             transactionType: "premium_subscription",
             paymentProvider: "manual",
@@ -1317,6 +1970,8 @@ function createApp() {
           id: randomUUID(),
           bookingId: null,
           hotelId,
+          userId: request.currentUser.id,
+          listingId: null,
           transactionRef: `HUT-PREM-${Date.now()}`,
           transactionType: "premium_subscription",
           paymentProvider: "manual",

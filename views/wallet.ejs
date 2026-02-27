@@ -1,0 +1,79 @@
+<%- include("partials/header", { title: "My Wallet" }) %>
+
+<section class="hero small">
+  <h1>Virtual Wallet</h1>
+  <p>Fund your wallet and use it for marketplace contact unlocks.</p>
+</section>
+
+<section class="stats-grid">
+  <article class="card">
+    <h3>Current Balance</h3>
+    <p class="metric"><%= formatNaira(walletUser.walletBalance || 0) %></p>
+  </article>
+  <article class="card">
+    <h3>Unlock Fee</h3>
+    <p class="metric"><%= formatNaira(contactUnlockFeeNaira) %></p>
+  </article>
+  <article class="card">
+    <h3>Total Unlocks</h3>
+    <p class="metric"><%= unlocks.length %></p>
+  </article>
+</section>
+
+<section class="card">
+  <h2>Fund wallet</h2>
+  <p class="muted">
+    Transfer to platform account (<strong><%= platform.bankAccount %></strong>) and submit details
+    below to credit your in-app wallet.
+  </p>
+  <form class="grid-form compact" method="POST" action="/wallet/topup">
+    <div>
+      <label for="amount">Amount (NGN)</label>
+      <input id="amount" name="amount" type="number" min="1" required />
+    </div>
+    <div>
+      <label for="reference">Transfer reference</label>
+      <input id="reference" name="reference" type="text" required />
+    </div>
+    <div class="align-end">
+      <button type="submit">Credit wallet</button>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Wallet transactions</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Reference</th>
+          <th>Amount</th>
+          <th>Balance After</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!walletTransactions.length) { %>
+          <tr><td colspan="6" class="muted">No wallet transactions yet.</td></tr>
+        <% } %>
+        <% walletTransactions.forEach((entry) => { %>
+          <tr>
+            <td><%= entry.createdAt %></td>
+            <td><%= entry.type %></td>
+            <td><%= entry.description %></td>
+            <td><%= entry.reference %></td>
+            <td class="<%= entry.direction === 'debit' ? 'danger' : 'success' %>">
+              <%= entry.direction === "debit" ? "-" : "+" %><%= formatNaira(entry.amount) %>
+            </td>
+            <td><%= formatNaira(entry.balanceAfter) %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<%- include("partials/footer", { platform }) %>

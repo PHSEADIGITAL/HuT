@@ -3,6 +3,9 @@
 <section class="hero small">
   <h1>Hotel Admin Overview</h1>
   <p>Manage bookings, payouts, subscription listing, and pricing performance.</p>
+  <% if (currentUser && currentUser.role === "platform_admin") { %>
+    <p><a class="button-link" href="/admin/owner-dashboard">Open platform owner dashboard</a></p>
+  <% } %>
 </section>
 
 <section class="cards">

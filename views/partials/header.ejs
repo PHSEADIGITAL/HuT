@@ -12,8 +12,15 @@
         <a class="brand" href="/">Hut!</a>
         <nav class="nav">
           <a href="/">Stays</a>
+          <a href="/marketplace">Marketplace</a>
+          <% if (currentUser) { %>
+            <a href="/wallet">Wallet</a>
+          <% } %>
           <% if (currentUser && (currentUser.role === "hotel_admin" || currentUser.role === "platform_admin")) { %>
             <a href="/admin">Hotel Admin</a>
+          <% } %>
+          <% if (currentUser && currentUser.role === "platform_admin") { %>
+            <a href="/admin/owner-dashboard">Owner Dashboard</a>
           <% } %>
           <% if (currentUser && currentUser.role === "platform_admin") { %>
             <a href="/admin/hotels/new">Onboard Hotel</a>
