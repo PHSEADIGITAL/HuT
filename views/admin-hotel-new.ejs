@@ -35,6 +35,24 @@
       <label for="pickupFee">Pickup fee (NGN)</label>
       <input id="pickupFee" name="pickupFee" type="number" min="0" value="7000" />
     </div>
+    <div class="full">
+      <label for="coverImage">Cover image URL (optional)</label>
+      <input
+        id="coverImage"
+        name="coverImage"
+        type="url"
+        placeholder="https://images.example.com/hotel-cover.jpg"
+      />
+    </div>
+    <div class="full">
+      <label for="galleryImages">Gallery image URLs (optional, comma-separated)</label>
+      <textarea
+        id="galleryImages"
+        name="galleryImages"
+        rows="2"
+        placeholder="https://...jpg, https://...jpg, https://...jpg"
+      ></textarea>
+    </div>
     <div>
       <label for="cancellationPolicy">Cancellation policy</label>
       <select id="cancellationPolicy" name="cancellationPolicy">

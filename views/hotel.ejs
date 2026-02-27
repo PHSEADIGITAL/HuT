@@ -1,9 +1,28 @@
 <%- include("partials/header", { title: hotel.name }) %>
 
-<section class="hero small">
-  <h1><%= hotel.name %></h1>
-  <p class="muted"><%= hotel.location %></p>
-  <p><%= hotel.description %></p>
+<section class="hero hotel-hero">
+  <div class="hotel-hero-copy">
+    <p class="eyebrow">Hotel Details</p>
+    <h1><%= hotel.name %></h1>
+    <p class="muted"><%= hotel.location %></p>
+    <p><%= hotel.description %></p>
+    <div class="stats inline">
+      <span>Pickup add-on: <strong><%= formatNaira(hotel.pickupFee) %></strong></span>
+      <span>Commission: <strong><%= formatPercent(hotel.commissionRate) %></strong></span>
+    </div>
+  </div>
+  <div class="hotel-hero-media">
+    <img src="<%= hotel.coverImage %>" alt="<%= hotel.name %> cover image" />
+  </div>
+</section>
+
+<section class="card">
+  <h2>Photo gallery</h2>
+  <div class="gallery-grid">
+    <% (hotel.galleryImages || []).forEach((image, index) => { %>
+      <img src="<%= image %>" alt="<%= hotel.name %> gallery image <%= index + 1 %>" />
+    <% }) %>
+  </div>
 </section>
 
 <section
@@ -13,7 +32,7 @@
   data-check-in="<%= checkInDate %>"
   data-check-out="<%= checkOutDate %>"
 >
-  <h2>Room categories & real-time availability</h2>
+  <h2>Room categories with live availability</h2>
 
   <form class="grid-form compact" method="GET" action="/hotels/<%= hotel.id %>">
     <div>
@@ -31,35 +50,33 @@
       />
     </div>
     <div class="align-end">
-      <button type="submit">Refresh</button>
+      <button type="submit">Refresh dates</button>
     </div>
   </form>
 
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Category</th>
-          <th>Price / Night</th>
-          <th>Total Units</th>
-          <th>Available Now</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% rooms.forEach((room) => { %>
-          <tr data-room-id="<%= room.id %>">
-            <td><%= room.category %></td>
-            <td><%= formatNaira(room.pricePerNight) %></td>
-            <td><%= room.totalUnits %></td>
-            <td class="availability-value <%= room.availability.soldOut ? 'danger' : 'success' %>">
-              <%= room.availability.availableUnits %>
-            </td>
-          </tr>
-        <% }) %>
-      </tbody>
-    </table>
+  <div class="room-card-grid">
+    <% rooms.forEach((room) => { %>
+      <article class="room-card" data-room-id="<%= room.id %>">
+        <img class="room-photo" src="<%= room.image %>" alt="<%= room.category %> room photo" />
+        <div class="room-content">
+          <div class="card-head">
+            <h3><%= room.category %></h3>
+            <span class="badge <%= room.availability.soldOut ? 'warn' : 'ok' %>">
+              <span class="availability-value <%= room.availability.soldOut ? 'danger' : 'success' %>"><%= room.availability.availableUnits %></span>
+              available
+            </span>
+          </div>
+          <p class="muted">Price: <strong><%= formatNaira(room.pricePerNight) %></strong> per night</p>
+          <p class="muted tiny">
+            Total units: <%= room.totalUnits %> |
+            Booked for selected dates:
+            <span class="booked-value"><%= room.totalUnits - room.availability.availableUnits %></span>
+          </p>
+        </div>
+      </article>
+    <% }) %>
   </div>
-  <p class="muted tiny">Auto-updates whenever a booking/cancellation occurs.</p>
+  <p class="muted tiny">Availability updates automatically when bookings or cancellations happen.</p>
 </section>
 
 <section class="card">
