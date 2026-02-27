@@ -19,6 +19,12 @@
       "premiumListingActive": true,
       "premiumListingExpiresAt": "2026-12-31T23:59:59.000Z",
       "pickupFee": 9000,
+      "coverImage": "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1600&q=80",
+      "galleryImages": [
+        "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1600&q=80",
+        "https://images.unsplash.com/photo-1468824357306-a439d58ccb1c?auto=format&fit=crop&w=1600&q=80",
+        "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=1600&q=80"
+      ],
       "createdAt": "2026-02-01T10:15:00.000Z"
     },
     {
@@ -33,6 +39,12 @@
       "premiumListingActive": false,
       "premiumListingExpiresAt": null,
       "pickupFee": 7000,
+      "coverImage": "https://images.unsplash.com/photo-1578683010236-d716f9a3f461?auto=format&fit=crop&w=1600&q=80",
+      "galleryImages": [
+        "https://images.unsplash.com/photo-1578683010236-d716f9a3f461?auto=format&fit=crop&w=1600&q=80",
+        "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1600&q=80",
+        "https://images.unsplash.com/photo-1445019980597-93fa8acb246c?auto=format&fit=crop&w=1600&q=80"
+      ],
       "createdAt": "2026-02-02T08:20:00.000Z"
     },
     {
@@ -47,6 +59,12 @@
       "premiumListingActive": false,
       "premiumListingExpiresAt": null,
       "pickupFee": 5000,
+      "coverImage": "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1600&q=80",
+      "galleryImages": [
+        "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1600&q=80",
+        "https://images.unsplash.com/photo-1501117716987-c8e1ecb210d0?auto=format&fit=crop&w=1600&q=80",
+        "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=1600&q=80"
+      ],
       "createdAt": "2026-02-03T09:30:00.000Z"
     }
   ],
@@ -56,49 +74,56 @@
       "hotelId": "hotel-seaside-grand",
       "category": "Standard",
       "pricePerNight": 55000,
-      "totalUnits": 8
+      "totalUnits": 8,
+      "image": "https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1400&q=80"
     },
     {
       "id": "room-seaside-deluxe",
       "hotelId": "hotel-seaside-grand",
       "category": "Deluxe",
       "pricePerNight": 85000,
-      "totalUnits": 6
+      "totalUnits": 6,
+      "image": "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?auto=format&fit=crop&w=1400&q=80"
     },
     {
       "id": "room-seaside-executive",
       "hotelId": "hotel-seaside-grand",
       "category": "Executive Suite",
       "pricePerNight": 135000,
-      "totalUnits": 3
+      "totalUnits": 3,
+      "image": "https://images.unsplash.com/photo-1618773928121-c32242e63f39?auto=format&fit=crop&w=1400&q=80"
     },
     {
       "id": "room-bonny-standard",
       "hotelId": "hotel-bonny-suites",
       "category": "Standard",
       "pricePerNight": 42000,
-      "totalUnits": 10
+      "totalUnits": 10,
+      "image": "https://images.unsplash.com/photo-1616486029423-aaa4789e8c9a?auto=format&fit=crop&w=1400&q=80"
     },
     {
       "id": "room-bonny-family",
       "hotelId": "hotel-bonny-suites",
       "category": "Family Deluxe",
       "pricePerNight": 68000,
-      "totalUnits": 5
+      "totalUnits": 5,
+      "image": "https://images.unsplash.com/photo-1616594039964-3f2b6f326f80?auto=format&fit=crop&w=1400&q=80"
     },
     {
       "id": "room-creek-classic",
       "hotelId": "hotel-creekside-lodge",
       "category": "Classic",
       "pricePerNight": 30000,
-      "totalUnits": 12
+      "totalUnits": 12,
+      "image": "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1400&q=80"
     },
     {
       "id": "room-creek-premium",
       "hotelId": "hotel-creekside-lodge",
       "category": "Premium",
       "pricePerNight": 47000,
-      "totalUnits": 4
+      "totalUnits": 4,
+      "image": "https://images.unsplash.com/photo-1611892440504-42a792e24d32?auto=format&fit=crop&w=1400&q=80"
     }
   ],
   "users": [

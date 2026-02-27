@@ -23,7 +23,7 @@
 
     const payload = await response.json();
     payload.rooms.forEach((room) => {
-      const row = document.querySelector(`tr[data-room-id="${room.roomId}"]`);
+      const row = document.querySelector(`[data-room-id="${room.roomId}"]`);
       if (!row) {
         return;
       }

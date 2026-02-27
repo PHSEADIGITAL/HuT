@@ -75,6 +75,81 @@ function safeNextPath(value) {
   return value.startsWith("/") ? value : "/";
 }
 
+const hotelFallbackImages = [
+  "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1600&q=80",
+  "https://images.unsplash.com/photo-1578683010236-d716f9a3f461?auto=format&fit=crop&w=1600&q=80",
+  "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1600&q=80",
+  "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=1600&q=80"
+];
+
+const roomFallbackImages = [
+  "https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1400&q=80",
+  "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?auto=format&fit=crop&w=1400&q=80",
+  "https://images.unsplash.com/photo-1616594039964-3f2b6f326f80?auto=format&fit=crop&w=1400&q=80",
+  "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1400&q=80"
+];
+
+function numericSeed(value) {
+  const text = String(value || "");
+  let seed = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    seed += text.charCodeAt(index);
+  }
+  return seed;
+}
+
+function pickFallbackImage(collection, seedValue) {
+  const seed = numericSeed(seedValue);
+  return collection[seed % collection.length];
+}
+
+function normalizeImageArray(value) {
+  if (Array.isArray(value)) {
+    return value.filter(Boolean).map((item) => String(item).trim()).filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function withHotelMedia(hotel) {
+  const coverImage =
+    (hotel.coverImage && String(hotel.coverImage).trim()) ||
+    pickFallbackImage(hotelFallbackImages, hotel.id);
+  const configuredGallery = normalizeImageArray(hotel.galleryImages);
+  const galleryImages = configuredGallery.length
+    ? configuredGallery
+    : [
+        coverImage,
+        pickFallbackImage(hotelFallbackImages, `${hotel.id}-a`),
+        pickFallbackImage(hotelFallbackImages, `${hotel.id}-b`)
+      ];
+
+  return {
+    ...hotel,
+    coverImage,
+    galleryImages
+  };
+}
+
+function withRoomMedia(room) {
+  const image =
+    (room.image && String(room.image).trim()) ||
+    pickFallbackImage(roomFallbackImages, room.id);
+  const galleryImages = normalizeImageArray(room.galleryImages);
+  return {
+    ...room,
+    image,
+    galleryImages: galleryImages.length ? galleryImages : [image]
+  };
+}
+
 function canViewBooking(user, booking) {
   if (!user) {
     return false;
@@ -341,6 +416,7 @@ function createApp() {
     const snapshot = await getSnapshot();
 
     const hotels = sortHotelsForMarketplace(snapshot.hotels).map((hotel) => {
+      const hotelWithMedia = withHotelMedia(hotel);
       const rooms = snapshot.rooms.filter((room) => room.hotelId === hotel.id);
       const minPrice = rooms.reduce(
         (current, room) => Math.min(current, room.pricePerNight),
@@ -349,7 +425,7 @@ function createApp() {
       const availability = hotelAvailability(snapshot, hotel.id, checkInDate, checkOutDate);
       const roomsAvailable = availability.reduce((sum, room) => sum + room.availableUnits, 0);
       return {
-        ...hotel,
+        ...hotelWithMedia,
         minPrice: Number.isFinite(minPrice) ? minPrice : 0,
         roomsAvailable
       };
@@ -377,7 +453,10 @@ function createApp() {
       return;
     }
 
-    const rooms = snapshot.rooms.filter((room) => room.hotelId === hotel.id);
+    const hotelWithMedia = withHotelMedia(hotel);
+    const rooms = snapshot.rooms
+      .filter((room) => room.hotelId === hotel.id)
+      .map((room) => withRoomMedia(room));
     const availabilityByRoom = hotelAvailability(
       snapshot,
       hotel.id,
@@ -391,7 +470,7 @@ function createApp() {
     }));
 
     response.render("hotel", {
-      hotel,
+      hotel: hotelWithMedia,
       rooms: roomCards,
       checkInDate,
       checkOutDate,
@@ -924,6 +1003,8 @@ function createApp() {
         cancellationPolicy,
         commissionRate,
         pickupFee,
+        coverImage,
+        galleryImages,
         premiumListingActive,
         adminName,
         adminEmail,
@@ -949,6 +1030,8 @@ function createApp() {
               ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
               : null,
           pickupFee: Math.max(0, toNumber(pickupFee, 0)),
+          coverImage: String(coverImage || "").trim(),
+          galleryImages: normalizeImageArray(galleryImages),
           createdAt: new Date().toISOString()
         };
 

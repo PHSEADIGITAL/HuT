@@ -1,14 +1,22 @@
 <%- include("partials/header", { title: "Bonny Island Hotels" }) %>
 
-<section class="hero">
-  <h1>Book trusted hotels in Bonny Island</h1>
-  <p>
-    Real-time availability, secure online payment, instant SMS + email confirmation,
-    and clear cancellation/refund policy.
-  </p>
+<section class="hero hero-visual">
+  <div class="hero-copy">
+    <p class="eyebrow">Bonny Island Hotel Booking</p>
+    <h1>Discover beautiful stays with real photos, live availability, and instant confirmation.</h1>
+    <p>
+      Browse curated hotels, compare room categories, and book in minutes with secure payment,
+      SMS/email acknowledgement, and clear refund rules.
+    </p>
+  </div>
+  <div class="hero-image">
+    <% if (hotels.length) { %>
+      <img src="<%= hotels[0].coverImage %>" alt="<%= hotels[0].name %> preview image" />
+    <% } %>
+  </div>
 </section>
 
-<section class="card filter-card">
+<section class="card filter-card search-panel">
   <form class="grid-form compact" method="GET" action="/">
     <div>
       <label for="checkInDate">Check-in</label>
@@ -25,43 +33,62 @@
       />
     </div>
     <div class="align-end">
-      <button type="submit">Update availability</button>
+      <button type="submit">Search stays</button>
     </div>
   </form>
 </section>
 
-<section class="cards">
-  <% hotels.forEach((hotel) => { %>
-    <article class="card hotel-card">
-      <div class="card-head">
-        <h2><%= hotel.name %></h2>
-        <% if (hotel.premiumListingActive) { %>
-          <span class="badge premium">Premium Listing</span>
-        <% } %>
-      </div>
-      <p class="muted"><%= hotel.location %></p>
-      <p><%= hotel.description %></p>
-      <div class="stats">
-        <span>From <strong><%= formatNaira(hotel.minPrice) %></strong>/night</span>
-        <span><strong><%= hotel.roomsAvailable %></strong> rooms available</span>
-      </div>
-      <a
-        class="button-link"
-        href="/hotels/<%= hotel.id %>?checkInDate=<%= checkInDate %>&checkOutDate=<%= checkOutDate %>"
-      >
-        View rooms and book
-      </a>
-    </article>
-  <% }) %>
+<section>
+  <div class="section-header">
+    <h2>Featured hotels in Bonny Island</h2>
+    <p class="muted">Premium properties and trusted options with visual room previews.</p>
+  </div>
+  <div class="cards hotel-grid">
+    <% hotels.forEach((hotel) => { %>
+      <article class="card hotel-card modern-card">
+        <a
+          class="hotel-media-wrap"
+          href="/hotels/<%= hotel.id %>?checkInDate=<%= checkInDate %>&checkOutDate=<%= checkOutDate %>"
+        >
+          <img class="hotel-media-img" src="<%= hotel.coverImage %>" alt="<%= hotel.name %> cover image" />
+          <% if (hotel.premiumListingActive) { %>
+            <span class="badge premium image-badge">Premium Listing</span>
+          <% } %>
+        </a>
+        <div class="hotel-body">
+          <div class="card-head">
+            <h3><%= hotel.name %></h3>
+          </div>
+          <p class="muted"><%= hotel.location %></p>
+          <p class="hotel-description"><%= hotel.description %></p>
+          <div class="stats">
+            <span>From <strong><%= formatNaira(hotel.minPrice) %></strong>/night</span>
+            <span><strong><%= hotel.roomsAvailable %></strong> available</span>
+          </div>
+          <div class="gallery-strip">
+            <% (hotel.galleryImages || []).slice(0, 3).forEach((image, index) => { %>
+              <img src="<%= image %>" alt="<%= hotel.name %> gallery image <%= index + 1 %>" />
+            <% }) %>
+          </div>
+          <a
+            class="button-link full-width"
+            href="/hotels/<%= hotel.id %>?checkInDate=<%= checkInDate %>&checkOutDate=<%= checkOutDate %>"
+          >
+            View rooms & book
+          </a>
+        </div>
+      </article>
+    <% }) %>
+  </div>
 </section>
 
 <section class="card ideas">
-  <h3>Guest Experience Enhancements Included</h3>
+  <h3>Experience upgrades included</h3>
   <ul>
-    <li>Double-booking protection at booking confirmation layer.</li>
-    <li>Fraud scoring for risky payment attempts.</li>
-    <li>Emergency contact capture for every reservation.</li>
-    <li>Optional pickup add-on during booking.</li>
+    <li>Photo-led listing cards for better booking confidence.</li>
+    <li>Real-time availability and double-booking prevention.</li>
+    <li>Fraud scoring for safer guest and hotel transactions.</li>
+    <li>Emergency contact capture and pickup add-on support.</li>
   </ul>
 </section>
 
