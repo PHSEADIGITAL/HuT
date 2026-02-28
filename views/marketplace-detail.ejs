@@ -33,10 +33,8 @@
 
   <aside class="card marketplace-sticky-card">
     <h3>Item details</h3>
-    <p class="price-anchor muted tiny">
-      Anchor price: <span class="anchor-original"><%= formatNaira(calculateAnchoredPrice(listing.price, 0.14)) %></span>
-    </p>
-    <p class="market-price"><%= formatNaira(listing.price) %></p>
+    <p class="price-anchor tiny"><span class="anchor-original"><%= formatNaira(calculateAnchoredPrice(listing.price, 0.14)) %></span></p>
+    <p class="market-price">Now <%= formatNaira(listing.price) %></p>
     <p class="muted tiny">Condition: <strong><%= listing.condition %></strong></p>
     <p class="muted tiny">
       Location:
@@ -69,7 +67,7 @@
     <% } %>
 
     <% if (!currentUser) { %>
-      <a class="button-link full-width" href="/auth/login?next=<%= encodeURIComponent(`/marketplace/listings/${listing.id}`) %>">
+      <a class="button-link full-width" href="/marketplace#marketplace-auth">
         Sign in to unlock contact
       </a>
     <% } %>
@@ -97,10 +95,8 @@
           <p class="muted tiny">Seller: <%= item.sellerName %></p>
         </div>
         <div class="market-result-side">
-          <p class="price-anchor muted tiny">
-            Anchor price: <span class="anchor-original"><%= formatNaira(calculateAnchoredPrice(item.price, 0.12)) %></span>
-          </p>
-          <p class="market-price"><%= formatNaira(item.price) %></p>
+          <p class="price-anchor tiny"><span class="anchor-original"><%= formatNaira(calculateAnchoredPrice(item.price, 0.12)) %></span></p>
+          <p class="market-price">Now <%= formatNaira(item.price) %></p>
           <a class="button-link small full-width" href="/marketplace/listings/<%= item.id %>">View item</a>
         </div>
       </article>

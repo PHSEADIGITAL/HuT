@@ -107,15 +107,16 @@
           <a class="ghost-link" href="/marketplace/my-listings">My listings</a>
           <a class="ghost-link" href="/wallet">Wallet (<%= formatNaira(walletBalance || 0) %>)</a>
         <% } else { %>
-          <a class="button-link" href="/auth/login?next=%2Fmarketplace">Sign in to sell</a>
+          <a class="button-link" href="#marketplace-auth">Sign in to sell</a>
+          <a class="ghost-link" href="#marketplace-register">Create account</a>
         <% } %>
       </div>
     </article>
 
     <% if (!currentUser) { %>
-      <article class="card">
+      <article class="card" id="marketplace-auth">
         <h3>Sign in from marketplace</h3>
-        <p class="muted tiny">Authenticate here to buy, unlock contacts, and sell items.</p>
+        <p class="muted tiny">Authenticate here to buy, unlock contacts, and sell items without leaving marketplace.</p>
         <form class="grid-form compact" method="POST" action="/auth/login" data-remember-form="login">
           <input type="hidden" name="next" value="/marketplace" />
           <div>
@@ -140,6 +141,48 @@
           </div>
           <div class="full">
             <button type="submit">Sign in</button>
+          </div>
+        </form>
+
+        <hr />
+
+        <h3 id="marketplace-register">Create account from marketplace</h3>
+        <form class="grid-form compact" method="POST" action="/auth/register">
+          <input type="hidden" name="next" value="/marketplace" />
+          <div>
+            <label for="marketRegisterName">Full name</label>
+            <input id="marketRegisterName" name="name" type="text" required />
+          </div>
+          <div>
+            <label for="marketRegisterPhone">Phone</label>
+            <input id="marketRegisterPhone" name="phone" type="tel" required />
+          </div>
+          <div class="full">
+            <label for="marketRegisterEmail">Email</label>
+            <input id="marketRegisterEmail" name="email" type="email" required />
+          </div>
+          <div>
+            <label for="marketRegisterPassword">Password</label>
+            <input
+              id="marketRegisterPassword"
+              name="password"
+              type="password"
+              minlength="8"
+              required
+            />
+          </div>
+          <div>
+            <label for="marketRegisterConfirmPassword">Confirm password</label>
+            <input
+              id="marketRegisterConfirmPassword"
+              name="confirmPassword"
+              type="password"
+              minlength="8"
+              required
+            />
+          </div>
+          <div class="full">
+            <button type="submit">Create account</button>
           </div>
         </form>
       </article>
@@ -216,10 +259,8 @@
             </p>
           </div>
           <div class="market-result-side">
-            <p class="price-anchor muted tiny">
-              Anchor price: <span class="anchor-original"><%= formatNaira(calculateAnchoredPrice(listing.price, 0.14)) %></span>
-            </p>
-            <p class="market-price"><%= formatNaira(listing.price) %></p>
+            <p class="price-anchor tiny"><span class="anchor-original"><%= formatNaira(calculateAnchoredPrice(listing.price, 0.14)) %></span></p>
+            <p class="market-price">Now <%= formatNaira(listing.price) %></p>
             <a class="button-link small full-width" href="/marketplace/listings/<%= listing.id %>">View item</a>
           </div>
         </article>

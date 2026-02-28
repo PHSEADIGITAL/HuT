@@ -69,10 +69,8 @@
           <p class="muted tiny">Status: <strong><%= listing.status %></strong></p>
         </div>
         <div class="market-result-side">
-          <p class="price-anchor muted tiny">
-            Anchor price: <span class="anchor-original"><%= formatNaira(calculateAnchoredPrice(listing.price, 0.12)) %></span>
-          </p>
-          <p class="market-price"><%= formatNaira(listing.price) %></p>
+          <p class="price-anchor tiny"><span class="anchor-original"><%= formatNaira(calculateAnchoredPrice(listing.price, 0.12)) %></span></p>
+          <p class="market-price">Now <%= formatNaira(listing.price) %></p>
           <% if (listing.status === "active") { %>
             <form method="POST" action="/marketplace/listings/<%= listing.id %>/mark-sold">
               <button type="submit" class="ghost-btn full-width">Mark as sold</button>
