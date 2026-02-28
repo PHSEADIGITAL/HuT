@@ -2,7 +2,7 @@
 
 <section class="hero small">
   <h1>Complete your payment</h1>
-  <p>Your booking was created and is waiting for payment confirmation.</p>
+  <p>Your booking was created and is waiting for verified webhook confirmation.</p>
 </section>
 
 <section class="card">
@@ -27,7 +27,12 @@
 </section>
 
 <section class="card">
-  <% if (paymentSession && paymentSession.paymentUrl) { %>
+  <% if (booking.paymentStatus === "pending_verification") { %>
+    <p class="muted">
+      Your payment callback has been received. Do not pay again. We are waiting for verified
+      webhook confirmation from the payment provider.
+    </p>
+  <% } else if (paymentSession && paymentSession.paymentUrl) { %>
     <p>
       Click below to pay with <strong><%= paymentSession.provider %></strong>.
     </p>
@@ -35,7 +40,7 @@
       Continue to secure payment
     </a>
     <p class="muted tiny">
-      After payment, you will be redirected back automatically.
+      After payment, your status becomes pending verification until the provider webhook is confirmed.
     </p>
   <% } else { %>
     <p class="muted">

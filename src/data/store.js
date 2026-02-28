@@ -23,6 +23,12 @@ function ensureDataShape(data) {
   if (!Array.isArray(data.paymentSessions)) {
     data.paymentSessions = [];
   }
+  if (!Array.isArray(data.walletTopupIntents)) {
+    data.walletTopupIntents = [];
+  }
+  if (!Array.isArray(data.paymentWebhookEvents)) {
+    data.paymentWebhookEvents = [];
+  }
   if (!Array.isArray(data.users)) {
     data.users = [];
   }
@@ -46,6 +52,42 @@ function ensureDataShape(data) {
   }
   if (!Array.isArray(data.hotelReviews)) {
     data.hotelReviews = [];
+  }
+
+  for (const payment of data.payments) {
+    if (typeof payment.settled !== "boolean") {
+      payment.settled = false;
+    }
+    if (payment.settlementBatchId === undefined) {
+      payment.settlementBatchId = null;
+    }
+    if (payment.settledAt === undefined) {
+      payment.settledAt = null;
+    }
+    if (!payment.paymentStatus) {
+      payment.paymentStatus = "paid";
+    }
+  }
+
+  for (const session of data.paymentSessions) {
+    if (!session.sessionType) {
+      session.sessionType = session.walletTopupId ? "wallet_topup" : "booking";
+    }
+  }
+
+  for (const hotel of data.hotels || []) {
+    if (hotel.paystackSubaccountCode === undefined) {
+      hotel.paystackSubaccountCode = "";
+    }
+    if (hotel.flutterwaveSubaccountId === undefined) {
+      hotel.flutterwaveSubaccountId = "";
+    }
+  }
+
+  if (data.platform && typeof data.platform === "object") {
+    if (!data.platform.collectionAccountAlias) {
+      data.platform.collectionAccountAlias = "HuT Business Collection Account";
+    }
   }
 
   for (const user of data.users) {

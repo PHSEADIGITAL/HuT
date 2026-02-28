@@ -91,6 +91,26 @@
           <input id="bankAccount" name="bankAccount" type="text" value="<%= hotel.bankAccount %>" required />
         </div>
         <div>
+          <label for="paystackSubaccountCode">Paystack subaccount code (optional)</label>
+          <input
+            id="paystackSubaccountCode"
+            name="paystackSubaccountCode"
+            type="text"
+            value="<%= hotel.paystackSubaccountCode || '' %>"
+            placeholder="ACCT_xxxxxxxxxxxxx"
+          />
+        </div>
+        <div>
+          <label for="flutterwaveSubaccountId">Flutterwave subaccount ID (optional)</label>
+          <input
+            id="flutterwaveSubaccountId"
+            name="flutterwaveSubaccountId"
+            type="text"
+            value="<%= hotel.flutterwaveSubaccountId || '' %>"
+            placeholder="FLWSECK-xxxxxxxxxxx-X"
+          />
+        </div>
+        <div>
           <label for="cancellationPolicy">Cancellation policy</label>
           <select id="cancellationPolicy" name="cancellationPolicy">
             <option value="flexible" <%= hotel.cancellationPolicy === "flexible" ? "selected" : "" %>>Flexible</option>
@@ -344,9 +364,9 @@
 
 <section class="card">
   <h2>Payment ledger</h2>
-  <p class="muted">Payments are split into hotel payout and Hut commission account.</p>
+  <p class="muted">Payments are split into hotel payout and HuT commission account.</p>
   <p><strong>Hotel Bank Account:</strong> <%= hotel.bankName %> - <%= hotel.bankAccount %></p>
-  <p><strong>Hut Platform Account:</strong> <%= platform.bankAccount %></p>
+  <p><strong>HuT Collection Channel:</strong> <%= platform.collectionAccountAlias || "HuT Business Collection Account" %></p>
   <div class="table-wrap">
     <table>
       <thead>

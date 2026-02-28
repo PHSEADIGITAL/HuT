@@ -1,7 +1,8 @@
 {
   "platform": {
-    "name": "Hut!",
+    "name": "HuT!",
     "bankAccount": "HUT-PLATFORM-00112233",
+    "collectionAccountAlias": "HuT Business Collection Account",
     "defaultCommissionRate": 0.12,
     "premiumSubscriptionMonthlyFee": 75000,
     "whatsappSupportNumber": "2348030001122"
@@ -250,6 +251,8 @@
   "premiumSubscriptions": [],
   "fraudEvents": [],
   "paymentSessions": [],
+  "walletTopupIntents": [],
+  "paymentWebhookEvents": [],
   "marketplaceSellerReviews": [],
   "hotelReviews": []
 }
