@@ -945,6 +945,15 @@ body {
   font-size: 1.1rem;
 }
 
+.price-anchor {
+  margin: 0.15rem 0;
+}
+
+.anchor-original {
+  text-decoration: line-through;
+  color: #6b7280;
+}
+
 .property-headline h1 {
   margin: 0.2rem 0;
 }

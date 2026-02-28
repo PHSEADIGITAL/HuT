@@ -92,6 +92,34 @@ function safeNextPath(value) {
   return value.startsWith("/") ? value : "/";
 }
 
+function createBookingReference(existingBookings = []) {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const existingReferences = new Set(
+    (existingBookings || []).map((booking) => String(booking.referenceNumber || ""))
+  );
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    let code = "";
+    for (let index = 0; index < 5; index += 1) {
+      code += alphabet[Math.floor(Math.random() * alphabet.length)];
+    }
+    if (!existingReferences.has(code)) {
+      return code;
+    }
+  }
+
+  return randomUUID().replace(/-/g, "").slice(0, 5).toUpperCase();
+}
+
+function calculateAnchoredPrice(price, upliftRate = 0.18) {
+  const basePrice = Math.max(0, Math.round(toNumber(price, 0)));
+  if (!basePrice) {
+    return 0;
+  }
+  const uplifted = basePrice * (1 + Math.max(0, toNumber(upliftRate, 0)));
+  const roundedAnchor = Math.round(uplifted / 100) * 100;
+  return Math.max(basePrice + 100, roundedAnchor);
+}
+
 const hotelFallbackImages = [
   "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1600&q=80",
   "https://images.unsplash.com/photo-1578683010236-d716f9a3f461?auto=format&fit=crop&w=1600&q=80",
@@ -918,6 +946,7 @@ function createApp() {
 
   app.locals.formatNaira = formatNaira;
   app.locals.formatPercent = formatPercent;
+  app.locals.calculateAnchoredPrice = calculateAnchoredPrice;
   app.locals.appName = appName;
 
   app.use(async (request, response, next) => {
@@ -1566,7 +1595,7 @@ function createApp() {
 
       const booking = {
         id: randomUUID(),
-        referenceNumber: `HUT-BKG-${Date.now()}-${Math.floor(Math.random() * 900 + 100)}`,
+        referenceNumber: createBookingReference(data.bookings),
         hotelId: hotel.id,
         roomId: room.id,
         roomCategory: room.category,

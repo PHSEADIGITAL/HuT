@@ -33,6 +33,9 @@
 
   <aside class="card marketplace-sticky-card">
     <h3>Item details</h3>
+    <p class="price-anchor muted tiny">
+      Anchor price: <span class="anchor-original"><%= formatNaira(calculateAnchoredPrice(listing.price, 0.14)) %></span>
+    </p>
     <p class="market-price"><%= formatNaira(listing.price) %></p>
     <p class="muted tiny">Condition: <strong><%= listing.condition %></strong></p>
     <p class="muted tiny">
@@ -94,6 +97,9 @@
           <p class="muted tiny">Seller: <%= item.sellerName %></p>
         </div>
         <div class="market-result-side">
+          <p class="price-anchor muted tiny">
+            Anchor price: <span class="anchor-original"><%= formatNaira(calculateAnchoredPrice(item.price, 0.12)) %></span>
+          </p>
           <p class="market-price"><%= formatNaira(item.price) %></p>
           <a class="button-link small full-width" href="/marketplace/listings/<%= item.id %>">View item</a>
         </div>

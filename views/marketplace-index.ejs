@@ -216,6 +216,9 @@
             </p>
           </div>
           <div class="market-result-side">
+            <p class="price-anchor muted tiny">
+              Anchor price: <span class="anchor-original"><%= formatNaira(calculateAnchoredPrice(listing.price, 0.14)) %></span>
+            </p>
             <p class="market-price"><%= formatNaira(listing.price) %></p>
             <a class="button-link small full-width" href="/marketplace/listings/<%= listing.id %>">View item</a>
           </div>
