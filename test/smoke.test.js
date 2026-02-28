@@ -390,6 +390,46 @@ test("users can submit seller and hotel reviews with ratings", async () => {
   assert.equal(hotelReview.rating, 5);
 });
 
+test("seller reviews reject phone numbers written as digits or words", async () => {
+  const app = createApp();
+  const reviewer = supertest.agent(app);
+  const unique = Date.now();
+  const email = `sellerreviewguard${unique}@hut.app`;
+
+  await reviewer
+    .post("/auth/register")
+    .type("form")
+    .send({
+      name: "Seller Review Guard",
+      phone: `+23480388${String(unique).slice(-4)}`,
+      email,
+      password: "Reviewer@123",
+      confirmPassword: "Reviewer@123",
+      next: "/marketplace"
+    })
+    .expect(302);
+
+  await reviewer
+    .post("/marketplace/sellers/user-demo-customer/reviews")
+    .type("form")
+    .send({
+      rating: "5",
+      comment: "Call me on zero eight zero three one two three four five six seven.",
+      returnTo: "/marketplace/sellers/user-demo-customer"
+    })
+    .expect(302);
+
+  const db = JSON.parse(await fs.readFile(dbFilePath, "utf8"));
+  const reviewerRow = (db.users || []).find((item) => item.email === email);
+  assert.ok(reviewerRow);
+  const blockedReview = (db.marketplaceSellerReviews || []).find(
+    (item) =>
+      item.reviewerUserId === reviewerRow.id &&
+      item.sellerUserId === "user-demo-customer"
+  );
+  assert.equal(blockedReview, undefined);
+});
+
 test("forgot password OTP flow resets password", async () => {
   const app = createApp();
   const unique = Date.now();

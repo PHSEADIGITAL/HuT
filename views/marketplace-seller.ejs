@@ -31,10 +31,8 @@
     <h3>Leave seller review</h3>
     <% if (!currentUser) { %>
       <p class="muted tiny">
-        <a href="/auth/login?next=<%= encodeURIComponent(`/marketplace/sellers/${seller.id}`) %>">
-          Sign in
-        </a>
-        to leave a rating and comment.
+            <a href="/marketplace#marketplace-auth">Sign in</a>
+            to leave a rating and comment.
       </p>
     <% } else if (currentUser.id === seller.id) { %>
       <p class="muted tiny">You cannot review your own seller profile.</p>
@@ -55,6 +53,9 @@
         <div class="full">
           <label for="sellerCommentInput">Comment</label>
           <textarea id="sellerCommentInput" name="comment" rows="3" required><%= userSellerReview ? userSellerReview.comment : "" %></textarea>
+          <p class="muted tiny">
+            Do not include phone numbers (digits or written-out number words) in seller reviews.
+          </p>
         </div>
         <div class="full">
           <button type="submit"><%= userSellerReview ? "Update review" : "Submit review" %></button>
@@ -103,10 +104,8 @@
               </p>
             </div>
             <div class="market-result-side">
-              <p class="price-anchor muted tiny">
-                Anchor price: <span class="anchor-original"><%= formatNaira(calculateAnchoredPrice(listing.price, 0.12)) %></span>
-              </p>
-              <p class="market-price"><%= formatNaira(listing.price) %></p>
+              <p class="price-anchor tiny"><span class="anchor-original"><%= formatNaira(calculateAnchoredPrice(listing.price, 0.12)) %></span></p>
+              <p class="market-price">Now <%= formatNaira(listing.price) %></p>
               <a class="button-link small full-width" href="/marketplace/listings/<%= listing.id %>">View item</a>
             </div>
           </article>

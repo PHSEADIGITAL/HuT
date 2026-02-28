@@ -951,7 +951,9 @@ body {
 
 .anchor-original {
   text-decoration: line-through;
-  color: #6b7280;
+  color: #b91c1c;
+  font-weight: 800;
+  letter-spacing: 0.01em;
 }
 
 .property-headline h1 {

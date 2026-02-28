@@ -600,6 +600,63 @@ function normalizeRating(value, fallback = 0) {
   return Math.min(5, Math.max(1, parsed));
 }
 
+function hasNumberWordSequence(text, minimumLength = 7) {
+  const numberWords = new Set([
+    "zero",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "oh",
+    "o",
+    "nought"
+  ]);
+  const connectors = new Set(["and"]);
+  const words = String(text || "")
+    .toLowerCase()
+    .replace(/[^a-z\s-]/g, " ")
+    .split(/[\s-]+/)
+    .filter(Boolean);
+
+  let run = 0;
+  for (const word of words) {
+    if (numberWords.has(word)) {
+      run += 1;
+      if (run >= minimumLength) {
+        return true;
+      }
+      continue;
+    }
+    if (connectors.has(word) && run > 0) {
+      continue;
+    }
+    run = 0;
+  }
+
+  return false;
+}
+
+function containsPhoneNumberLikeText(value) {
+  const text = String(value || "");
+  if (!text.trim()) {
+    return false;
+  }
+
+  const digitsOnly = text.replace(/\D/g, "");
+  if (digitsOnly.length >= 7) {
+    return true;
+  }
+  if (/\+?\d[\d\s().-]{6,}\d/.test(text)) {
+    return true;
+  }
+  return hasNumberWordSequence(text, 7);
+}
+
 function getMarketplaceSellerRatingStats(data, sellerUserId) {
   const reviews = (data.marketplaceSellerReviews || []).filter(
     (review) => review.sellerUserId === sellerUserId
@@ -3111,6 +3168,15 @@ function createApp() {
 
       if (!rating || !comment) {
         setFlash(request, "error", "Rating and comment are required.");
+        response.redirect(returnTo);
+        return;
+      }
+      if (containsPhoneNumberLikeText(comment)) {
+        setFlash(
+          request,
+          "error",
+          "Phone numbers are not allowed in seller reviews (digits or written-out numbers)."
+        );
         response.redirect(returnTo);
         return;
       }

@@ -33,14 +33,10 @@
       <% } %>
     </p>
     <div class="marketplace-util-links tiny">
-      <a href="/marketplace">Home</a>
       <% if (currentUser) { %>
         <a href="/marketplace/my-listings">My Listings</a>
         <a href="/marketplace/new">Sell Item</a>
         <a href="/wallet">Wallet</a>
-      <% } else { %>
-        <a href="/auth/login?next=%2Fmarketplace">Sign in</a>
-        <a href="/auth/register?next=%2Fmarketplace">Register</a>
       <% } %>
     </div>
     <div class="history-nav">
