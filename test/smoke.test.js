@@ -124,6 +124,10 @@ test("hotel admin can lookup booking by reference number", async () => {
   const bookingMatch = bookingResponse.headers.location.match(/\/bookings\/([^/]+)\//);
   assert.ok(bookingMatch);
   const bookingId = bookingMatch[1];
+  const db = JSON.parse(await fs.readFile(dbFilePath, "utf8"));
+  const createdBooking = (db.bookings || []).find((item) => item.id === bookingId);
+  assert.ok(createdBooking);
+  assert.match(createdBooking.referenceNumber || "", /^[A-Z0-9]{5}$/);
 
   const admin = supertest.agent(app);
   await admin
@@ -137,7 +141,9 @@ test("hotel admin can lookup booking by reference number", async () => {
     .expect(302);
 
   const searchResult = await admin
-    .get(`/admin/hotels/hotel-seaside-grand/dashboard?bookingReference=${encodeURIComponent(bookingId)}`)
+    .get(
+      `/admin/hotels/hotel-seaside-grand/dashboard?bookingReference=${encodeURIComponent(createdBooking.referenceNumber)}`
+    )
     .expect(200);
   assert.doesNotMatch(searchResult.text, /No bookings matched that reference/);
 

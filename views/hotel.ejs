@@ -94,6 +94,10 @@
                 Price: <strong><%= formatNaira(room.pricePerNight) %></strong> per night
               </p>
               <p class="muted tiny">
+                Anchor price:
+                <span class="anchor-original"><%= formatNaira(calculateAnchoredPrice(room.pricePerNight, 0.16)) %></span>
+              </p>
+              <p class="muted tiny">
                 Booked for selected dates:
                 <span class="booked-value"><%= room.totalUnits - room.availability.availableUnits %></span>
                 of <%= room.totalUnits %>
@@ -185,6 +189,9 @@
     <article class="card sticky-booking">
       <h3>Your booking details</h3>
       <p class="muted tiny"><%= checkInDate %> - <%= checkOutDate %> • <%= search.adults %> adults • <%= search.rooms %> room(s)</p>
+      <p class="price-anchor muted tiny">
+        Anchor price: <span class="anchor-original"><%= formatNaira(calculateAnchoredPrice(hotel.minPrice, 0.2)) %></span>
+      </p>
       <p class="price">From <strong><%= formatNaira(hotel.minPrice) %></strong> / night</p>
       <% if (!currentUser || currentUser.role !== "customer") { %>
         <p class="muted">Sign in to complete booking with secure payment.</p>
