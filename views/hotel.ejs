@@ -1,11 +1,14 @@
 <%- include("partials/header", { title: hotel.name }) %>
 
 <section class="property-headline">
-  <p class="muted tiny">
-    <a href="/?destination=<%= encodeURIComponent(search.destination) %>&checkInDate=<%= checkInDate %>&checkOutDate=<%= checkOutDate %>&adults=<%= search.adults %>&rooms=<%= search.rooms %>">
-      Back to search results
-    </a>
-  </p>
+  <form method="GET" action="/" class="back-search-form">
+    <input type="hidden" name="destination" value="<%= search.destination %>" />
+    <input type="hidden" name="checkInDate" value="<%= checkInDate %>" />
+    <input type="hidden" name="checkOutDate" value="<%= checkOutDate %>" />
+    <input type="hidden" name="adults" value="<%= search.adults %>" />
+    <input type="hidden" name="rooms" value="<%= search.rooms %>" />
+    <button type="submit" class="ghost-btn tiny">Back to search results</button>
+  </form>
   <div class="history-nav">
     <button type="button" class="ghost-btn tiny js-history-back">Back</button>
     <button type="button" class="ghost-btn tiny js-history-forward">Forward</button>

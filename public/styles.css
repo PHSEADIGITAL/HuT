@@ -962,6 +962,22 @@ body {
   margin: 0.2rem 0 0.5rem;
 }
 
+.back-search-form {
+  margin-bottom: 0.35rem;
+}
+
+.back-search-form .ghost-btn,
+.property-headline .history-nav .ghost-btn {
+  color: #0f172a;
+  border-color: #94a3b8;
+  background: #ffffff;
+}
+
+.back-search-form .ghost-btn:hover,
+.property-headline .history-nav .ghost-btn:hover {
+  background: #f1f5f9;
+}
+
 .property-gallery {
   display: grid;
   grid-template-columns: 1.3fr 1fr;
