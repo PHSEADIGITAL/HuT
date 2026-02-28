@@ -1,5 +1,18 @@
 const path = require("path");
 
+const nodeEnv = process.env.NODE_ENV || "development";
+const rawPaymentProvider = String(process.env.PAYMENT_PROVIDER || "mock").toLowerCase();
+const allowedPaymentProviders = new Set(["mock", "paystack", "flutterwave"]);
+const normalizedPaymentProvider = allowedPaymentProviders.has(rawPaymentProvider)
+  ? rawPaymentProvider
+  : "mock";
+
+if (nodeEnv === "production" && normalizedPaymentProvider === "mock") {
+  throw new Error(
+    "PAYMENT_PROVIDER cannot be 'mock' in production. Use 'paystack' or 'flutterwave'."
+  );
+}
+
 function boolEnv(name, fallback = false) {
   const value = process.env[name];
   if (value == null) {
@@ -9,8 +22,8 @@ function boolEnv(name, fallback = false) {
 }
 
 module.exports = {
-  appName: "Hut!",
-  nodeEnv: process.env.NODE_ENV || "development",
+  appName: "HuT!",
+  nodeEnv,
   port: Number(process.env.PORT || 3000),
   baseUrl: process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`,
   dbFilePath:
@@ -26,19 +39,24 @@ module.exports = {
     minServiceFee: 2500
   },
   providers: {
-    payment: process.env.PAYMENT_PROVIDER || "mock",
+    payment: normalizedPaymentProvider,
     sms: process.env.SMS_PROVIDER || "mock",
     email: process.env.EMAIL_PROVIDER || "mock"
   },
   paystack: {
     secretKey: process.env.PAYSTACK_SECRET_KEY || "",
+    webhookSecret: process.env.PAYSTACK_WEBHOOK_SECRET || process.env.PAYSTACK_SECRET_KEY || "",
     initializeUrl: process.env.PAYSTACK_INITIALIZE_URL || "https://api.paystack.co/transaction/initialize",
     verifyUrlBase: process.env.PAYSTACK_VERIFY_URL_BASE || "https://api.paystack.co/transaction/verify"
   },
   flutterwave: {
     secretKey: process.env.FLUTTERWAVE_SECRET_KEY || "",
+    webhookSecretHash: process.env.FLUTTERWAVE_WEBHOOK_SECRET_HASH || "",
     initializeUrl: process.env.FLUTTERWAVE_INITIALIZE_URL || "https://api.flutterwave.com/v3/payments",
     verifyUrlBase: process.env.FLUTTERWAVE_VERIFY_URL_BASE || "https://api.flutterwave.com/v3/transactions/verify_by_reference"
+  },
+  wallet: {
+    allowManualTrustTopupInProduction: boolEnv("ALLOW_MANUAL_TRUST_TOPUP_IN_PRODUCTION", false)
   },
   twilio: {
     accountSid: process.env.TWILIO_ACCOUNT_SID || "",

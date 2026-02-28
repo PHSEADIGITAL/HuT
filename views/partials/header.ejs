@@ -9,7 +9,7 @@
   <body class="<%= currentPath && currentPath.startsWith('/marketplace') ? 'marketplace-mode' : '' %>">
     <header class="topbar">
       <div class="container topbar-inner">
-        <a class="brand" href="/">Hut!</a>
+        <a class="brand" href="/"><%= appName %></a>
         <nav class="nav">
           <a href="/">Stays</a>
           <a href="/marketplace">Marketplace</a>
@@ -39,7 +39,7 @@
         </div>
       </div>
     </header>
-    <% if (currentPath !== "/") { %>
+    <% if (currentPath !== "/" && !currentPath.startsWith("/wallet")) { %>
       <section class="platform-tabs-wrap">
         <div class="container platform-tabs">
           <a class="platform-tab <%= currentPath === '/' || currentPath.startsWith('/hotels') ? 'active' : '' %>" href="/">Stays</a>

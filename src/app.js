@@ -11,7 +11,8 @@ const {
   baseUrl,
   nodeEnv,
   session: sessionConfig,
-  auth: authConfig
+  auth: authConfig,
+  wallet: walletConfig
 } = require("./config");
 const { getSnapshot, withWriteLock } = require("./data/store");
 const {
@@ -28,7 +29,14 @@ const {
 } = require("./services/notifications");
 const { registerSubscriber, broadcast } = require("./services/realtime");
 const { formatNaira, formatPercent } = require("./services/format");
-const { initializePayment, verifyPayment } = require("./services/providers/paymentProvider");
+const {
+  getPaymentProvider,
+  initializePayment,
+  initializeWalletTopup,
+  verifyPayment,
+  verifyWebhookSignature,
+  getWebhookEventDetails
+} = require("./services/providers/paymentProvider");
 const {
   sanitizeUser,
   findUserById,
@@ -684,6 +692,99 @@ function createWalletEntry(data, {
   return { entry, balanceAfter: user.walletBalance };
 }
 
+function createPaymentRecord(payload = {}) {
+  return {
+    settled: false,
+    settlementBatchId: null,
+    settledAt: null,
+    paymentStatus: "paid",
+    ...payload
+  };
+}
+
+function buildHotelSplitConfig(hotel, pricing) {
+  return {
+    paystackSubaccountCode: String(hotel?.paystackSubaccountCode || "").trim(),
+    flutterwaveSubaccountId: String(hotel?.flutterwaveSubaccountId || "").trim(),
+    platformFeeNaira: Math.max(0, Math.round(pricing?.platformRevenue || 0)),
+    hotelShareNaira: Math.max(0, Math.round(pricing?.hotelPayout || 0))
+  };
+}
+
+function findPaymentSessionByReference(data, provider, reference) {
+  const normalizedReference = String(reference || "").trim();
+  return data.paymentSessions.find(
+    (item) =>
+      item.provider === provider &&
+      (item.reference === normalizedReference || normalizedReference.includes(item.reference))
+  );
+}
+
+function canTrustManualWalletTopup() {
+  return nodeEnv !== "production" || walletConfig.allowManualTrustTopupInProduction;
+}
+
+function applyWalletTopupCredit({
+  data,
+  intent,
+  transactionReference,
+  externalId = null,
+  provider = "manual"
+}) {
+  if (!intent) {
+    return { error: "Wallet top-up intent not found." };
+  }
+  if (intent.status === "credited") {
+    const walletOwner = data.users.find((item) => item.id === intent.userId);
+    return {
+      alreadyCredited: true,
+      balanceAfter: walletOwner ? walletOwner.walletBalance : null
+    };
+  }
+
+  const paymentRef = String(transactionReference || intent.reference || "").trim();
+  const walletEntryResult = createWalletEntry(data, {
+    userId: intent.userId,
+    type: "wallet_topup",
+    direction: "credit",
+    amount: intent.amount,
+    description: "Wallet top-up via secure provider verification",
+    reference: paymentRef || `WTOP-${Date.now()}`,
+    relatedPaymentId: intent.paymentRecordId || null
+  });
+  if (walletEntryResult.error) {
+    return { error: walletEntryResult.error };
+  }
+
+  const nowIso = new Date().toISOString();
+  intent.status = "credited";
+  intent.creditedAt = nowIso;
+  intent.updatedAt = nowIso;
+  intent.paymentVerifiedAt = nowIso;
+  intent.provider = provider || intent.provider;
+  if (paymentRef) {
+    intent.reference = paymentRef;
+  }
+  if (externalId) {
+    intent.externalId = externalId;
+  }
+
+  const paymentRecord = data.payments.find((item) => item.id === intent.paymentRecordId);
+  if (paymentRecord) {
+    paymentRecord.paymentStatus = "paid";
+    paymentRecord.paymentProvider = provider || paymentRecord.paymentProvider;
+    paymentRecord.paymentExternalId = externalId || paymentRecord.paymentExternalId;
+    paymentRecord.transactionRef = paymentRef || paymentRecord.transactionRef;
+    paymentRecord.settled = true;
+    paymentRecord.settledAt = nowIso;
+  }
+
+  return {
+    ok: true,
+    balanceAfter: walletEntryResult.balanceAfter
+  };
+}
+
 function countMonthlyListings(data, userId, monthKey) {
   return data.marketplaceListings.filter(
     (listing) => listing.sellerUserId === userId && listing.monthKey === monthKey
@@ -767,15 +868,15 @@ async function dispatchPasswordOtp({ identifier, code }) {
   if (isEmailIdentifier(identifier)) {
     await sendEmail({
       to: identifier,
-      subject: "Hut password reset OTP",
-      text: `Your Hut password reset OTP is ${code}. It expires in ${passwordOtpExpiryMinutes} minutes.`
+      subject: "HuT password reset OTP",
+      text: `Your HuT password reset OTP is ${code}. It expires in ${passwordOtpExpiryMinutes} minutes.`
     });
     return "email";
   }
 
   await sendSms({
     to: identifier,
-    body: `Hut OTP: ${code}. Expires in ${passwordOtpExpiryMinutes} mins.`
+    body: `HuT OTP: ${code}. Expires in ${passwordOtpExpiryMinutes} mins.`
   });
   return "sms";
 }
@@ -889,24 +990,30 @@ async function markBookingAsPaid({
   booking.paymentExternalId = externalId || transactionReference;
   booking.paidAt = new Date().toISOString();
 
-  data.payments.push({
-    id: randomUUID(),
-    bookingId: booking.id,
-    hotelId: hotel.id,
-    userId: booking.customerUserId || null,
-    listingId: null,
-    transactionRef: transactionReference,
-    transactionType: "booking_payment",
-    paymentProvider,
-    paymentExternalId: externalId || transactionReference,
-    grossAmount: booking.pricing.totalPaid,
-    hotelPayout: booking.pricing.hotelPayout,
-    platformEarning: booking.pricing.platformRevenue,
-    commissionRate: booking.pricing.commissionRateApplied,
-    hotelBankAccount: hotel.bankAccount,
-    platformBankAccount: data.platform.bankAccount,
-    createdAt: booking.paidAt
-  });
+  data.payments.push(
+    createPaymentRecord({
+      id: randomUUID(),
+      bookingId: booking.id,
+      hotelId: hotel.id,
+      userId: booking.customerUserId || null,
+      listingId: null,
+      transactionRef: transactionReference,
+      transactionType: "booking_payment",
+      paymentProvider,
+      paymentExternalId: externalId || transactionReference,
+      grossAmount: booking.pricing.totalPaid,
+      hotelPayout: booking.pricing.hotelPayout,
+      platformEarning: booking.pricing.platformRevenue,
+      commissionRate: booking.pricing.commissionRateApplied,
+      hotelBankAccount: hotel.bankAccount,
+      platformBankAccount: data.platform.bankAccount,
+      paymentStatus: "paid",
+      settled: false,
+      settlementBatchId: null,
+      settledAt: null,
+      createdAt: booking.paidAt
+    })
+  );
 
   await sendBookingAcknowledgements({
     data,
@@ -927,7 +1034,13 @@ function createApp() {
   app.set("view engine", "ejs");
   app.set("views", path.join(__dirname, "..", "views"));
   app.use(express.urlencoded({ extended: true }));
-  app.use(express.json());
+  app.use(
+    express.json({
+      verify: (request, _response, buffer) => {
+        request.rawBody = Buffer.from(buffer);
+      }
+    })
+  );
   app.use(express.static(path.join(__dirname, "..", "public")));
   app.use(
     session({
@@ -1034,7 +1147,7 @@ function createApp() {
     }
 
     request.session.userId = result.user.id;
-    setFlash(request, "success", "Welcome to Hut! Your account is ready.");
+    setFlash(request, "success", "Welcome to HuT! Your account is ready.");
     response.redirect(nextUrl);
   });
 
@@ -1641,16 +1754,19 @@ function createApp() {
           customerName: booking.customerName,
           email: booking.email,
           phone: booking.phone,
-          callbackBaseUrl
+          callbackBaseUrl,
+          splitConfig: buildHotelSplitConfig(hotel, booking.pricing)
         });
 
         data.paymentSessions.push({
           id: randomUUID(),
           bookingId: booking.id,
+          walletTopupId: null,
+          sessionType: "booking",
           provider: paymentInit.provider,
           reference: paymentInit.reference,
           paymentUrl: paymentInit.paymentUrl || null,
-          status: paymentInit.status === "paid" ? "paid" : "pending",
+          status: paymentInit.status === "paid" ? "paid" : "pending_verification",
           createdAt: new Date().toISOString()
         });
 
@@ -1671,6 +1787,7 @@ function createApp() {
 
         booking.paymentReference = paymentInit.reference;
         booking.paymentProvider = paymentInit.provider;
+        booking.paymentStatus = "pending_verification";
         return {
           bookingId: booking.id,
           redirectType: "payment",
@@ -1719,7 +1836,9 @@ function createApp() {
     }
 
     const sessionRecord = snapshot.paymentSessions.find(
-      (item) => item.bookingId === booking.id && item.status === "pending"
+      (item) =>
+        item.bookingId === booking.id &&
+        (item.status === "pending" || item.status === "pending_verification")
     );
     response.render("booking-payment", {
       booking,
@@ -1742,14 +1861,67 @@ function createApp() {
     }
 
     const result = await withWriteLock(async (data) => {
-      const sessionRecord = data.paymentSessions.find(
-        (item) =>
-          item.provider === provider &&
-          item.status === "pending" &&
-          (item.reference === callbackReference || callbackReference.includes(item.reference))
-      );
+      const sessionRecord = findPaymentSessionByReference(data, provider, callbackReference);
       if (!sessionRecord) {
         return { error: "Payment session not found for callback reference." };
+      }
+
+      const nowIso = new Date().toISOString();
+      sessionRecord.callbackReceivedAt = nowIso;
+      sessionRecord.lastCallbackReference = callbackReference;
+
+      if (sessionRecord.sessionType === "wallet_topup") {
+        const intent = data.walletTopupIntents.find(
+          (item) => item.id === sessionRecord.walletTopupId
+        );
+        if (!intent) {
+          return { error: "Wallet top-up intent linked to callback was not found." };
+        }
+
+        // Keep test/dev mock convenient while production requires webhook verification.
+        if (provider === "mock" && nodeEnv !== "production") {
+          const verification = await verifyPayment({
+            provider,
+            reference: sessionRecord.reference,
+            callbackQuery: request.query
+          });
+          if (!verification.verified) {
+            sessionRecord.status = "failed";
+            intent.status = "failed";
+            intent.updatedAt = nowIso;
+            return { error: "Wallet top-up verification failed." };
+          }
+
+          const topupResult = applyWalletTopupCredit({
+            data,
+            intent,
+            transactionReference: sessionRecord.reference,
+            externalId: verification.externalId,
+            provider: sessionRecord.provider
+          });
+          if (topupResult.error) {
+            return { error: topupResult.error };
+          }
+          sessionRecord.status = "paid";
+          sessionRecord.verifiedAt = nowIso;
+          return {
+            flow: "wallet_topup",
+            credited: true,
+            balanceAfter: topupResult.balanceAfter
+          };
+        }
+
+        if (intent.status !== "credited") {
+          intent.status = "pending_verification";
+          intent.updatedAt = nowIso;
+        }
+        if (sessionRecord.status !== "paid") {
+          sessionRecord.status = "pending_verification";
+        }
+        return {
+          flow: "wallet_topup",
+          awaitingWebhook: true
+        };
       }
 
       const booking = data.bookings.find((item) => item.id === sessionRecord.bookingId);
@@ -1757,16 +1929,16 @@ function createApp() {
         return { error: "Booking linked to payment session not found." };
       }
 
-      const hotel = data.hotels.find((item) => item.id === booking.hotelId);
-      if (!hotel) {
-        return { error: "Hotel linked to booking not found." };
-      }
-
       if (booking.paymentStatus === "paid") {
-        return { bookingId: booking.id };
+        return { flow: "booking", bookingId: booking.id, alreadyPaid: true };
       }
 
-      try {
+      // Keep test/dev mock convenient while production requires webhook verification.
+      if (provider === "mock" && nodeEnv !== "production") {
+        const hotel = data.hotels.find((item) => item.id === booking.hotelId);
+        if (!hotel) {
+          return { error: "Hotel linked to booking not found." };
+        }
         const verification = await verifyPayment({
           provider,
           reference: sessionRecord.reference,
@@ -1776,13 +1948,11 @@ function createApp() {
           sessionRecord.status = "failed";
           booking.paymentStatus = "failed";
           booking.status = "payment_failed";
-          return {
-            error: "Payment verification failed. You can retry payment from your booking page."
-          };
+          return { error: "Payment verification failed. Please retry your payment." };
         }
 
         sessionRecord.status = "paid";
-        sessionRecord.verifiedAt = new Date().toISOString();
+        sessionRecord.verifiedAt = nowIso;
         await markBookingAsPaid({
           data,
           booking,
@@ -1791,16 +1961,18 @@ function createApp() {
           transactionReference: sessionRecord.reference,
           externalId: verification.externalId
         });
-
-        return { bookingId: booking.id };
-      } catch (error) {
-        sessionRecord.status = "failed";
-        booking.paymentStatus = "failed";
-        booking.status = "payment_failed";
-        return {
-          error: `Payment verification error: ${error.message}`
-        };
+        return { flow: "booking", bookingId: booking.id, paid: true };
       }
+
+      booking.paymentStatus = "pending_verification";
+      if (sessionRecord.status !== "paid") {
+        sessionRecord.status = "pending_verification";
+      }
+      return {
+        flow: "booking",
+        bookingId: booking.id,
+        awaitingWebhook: true
+      };
     });
 
     if (result.error) {
@@ -1811,7 +1983,193 @@ function createApp() {
       return;
     }
 
+    if (result.flow === "wallet_topup") {
+      if (result.awaitingWebhook) {
+        setFlash(
+          request,
+          "success",
+          "Payment callback received. Wallet will be credited after verified webhook confirmation."
+        );
+      } else if (result.credited) {
+        setFlash(
+          request,
+          "success",
+          `Wallet funded successfully. New balance: ${formatNaira(result.balanceAfter)}`
+        );
+      }
+      response.redirect("/wallet");
+      return;
+    }
+
+    if (result.awaitingWebhook) {
+      setFlash(
+        request,
+        "success",
+        "Payment callback received. Booking will confirm once webhook verification succeeds."
+      );
+      response.redirect(`/bookings/${result.bookingId}/pay`);
+      return;
+    }
+
     response.redirect(`/bookings/${result.bookingId}/success`);
+  });
+
+  app.post("/payments/webhook/:provider", async (request, response) => {
+    const provider = String(request.params.provider || "").toLowerCase();
+    const signatureValid = verifyWebhookSignature({
+      provider,
+      rawBody: request.rawBody || "",
+      headers: request.headers || {}
+    });
+    if (!signatureValid) {
+      response.status(401).json({ ok: false, error: "Invalid webhook signature." });
+      return;
+    }
+
+    const details = getWebhookEventDetails(provider, request.body || {});
+    if (!details.successful || !details.reference) {
+      response.status(200).json({ ok: true, ignored: true });
+      return;
+    }
+
+    const webhookResult = await withWriteLock(async (data) => {
+      const nowIso = new Date().toISOString();
+      const existingEvent = data.paymentWebhookEvents.find(
+        (event) => event.dedupeKey === details.dedupeKey
+      );
+      if (existingEvent) {
+        return { ok: true, duplicate: true };
+      }
+
+      const eventLog = {
+        id: randomUUID(),
+        provider,
+        eventType: details.eventType,
+        eventId: details.eventId,
+        reference: details.reference,
+        dedupeKey: details.dedupeKey,
+        status: "received",
+        createdAt: nowIso
+      };
+      data.paymentWebhookEvents.push(eventLog);
+
+      const sessionRecord = findPaymentSessionByReference(data, provider, details.reference);
+      if (!sessionRecord) {
+        eventLog.status = "unmatched";
+        eventLog.processedAt = nowIso;
+        return { ok: true, unmatched: true };
+      }
+
+      if (sessionRecord.sessionType === "wallet_topup") {
+        const intent = data.walletTopupIntents.find(
+          (item) => item.id === sessionRecord.walletTopupId
+        );
+        if (!intent) {
+          eventLog.status = "failed";
+          eventLog.error = "Missing wallet top-up intent for webhook.";
+          eventLog.processedAt = nowIso;
+          return { ok: false, error: eventLog.error };
+        }
+        if (intent.status === "credited") {
+          eventLog.status = "already_processed";
+          eventLog.processedAt = nowIso;
+          return { ok: true, alreadyProcessed: true };
+        }
+
+        const verification = await verifyPayment({
+          provider,
+          reference: sessionRecord.reference,
+          callbackQuery: {
+            tx_ref: details.reference,
+            reference: details.reference
+          }
+        });
+        if (!verification.verified) {
+          sessionRecord.status = "failed";
+          intent.status = "failed";
+          intent.updatedAt = nowIso;
+          eventLog.status = "failed";
+          eventLog.error = "Verification failed for wallet top-up webhook.";
+          eventLog.processedAt = nowIso;
+          return { ok: false, error: eventLog.error };
+        }
+
+        const topupResult = applyWalletTopupCredit({
+          data,
+          intent,
+          transactionReference: sessionRecord.reference,
+          externalId: verification.externalId,
+          provider
+        });
+        if (topupResult.error) {
+          eventLog.status = "failed";
+          eventLog.error = topupResult.error;
+          eventLog.processedAt = nowIso;
+          return { ok: false, error: topupResult.error };
+        }
+
+        sessionRecord.status = "paid";
+        sessionRecord.verifiedAt = nowIso;
+        eventLog.status = "processed";
+        eventLog.processedAt = nowIso;
+        return { ok: true, credited: true };
+      }
+
+      const booking = data.bookings.find((item) => item.id === sessionRecord.bookingId);
+      if (!booking) {
+        eventLog.status = "failed";
+        eventLog.error = "Missing booking linked to webhook payment session.";
+        eventLog.processedAt = nowIso;
+        return { ok: false, error: eventLog.error };
+      }
+      const hotel = data.hotels.find((item) => item.id === booking.hotelId);
+      if (!hotel) {
+        eventLog.status = "failed";
+        eventLog.error = "Missing hotel linked to webhook payment session.";
+        eventLog.processedAt = nowIso;
+        return { ok: false, error: eventLog.error };
+      }
+      if (booking.paymentStatus === "paid") {
+        sessionRecord.status = "paid";
+        eventLog.status = "already_processed";
+        eventLog.processedAt = nowIso;
+        return { ok: true, alreadyProcessed: true };
+      }
+
+      const verification = await verifyPayment({
+        provider,
+        reference: sessionRecord.reference,
+        callbackQuery: {
+          tx_ref: details.reference,
+          reference: details.reference
+        }
+      });
+      if (!verification.verified) {
+        sessionRecord.status = "failed";
+        booking.paymentStatus = "failed";
+        booking.status = "payment_failed";
+        eventLog.status = "failed";
+        eventLog.error = "Verification failed for booking payment webhook.";
+        eventLog.processedAt = nowIso;
+        return { ok: false, error: eventLog.error };
+      }
+
+      sessionRecord.status = "paid";
+      sessionRecord.verifiedAt = nowIso;
+      await markBookingAsPaid({
+        data,
+        booking,
+        hotel,
+        paymentProvider: provider,
+        transactionReference: sessionRecord.reference,
+        externalId: verification.externalId
+      });
+      eventLog.status = "processed";
+      eventLog.processedAt = nowIso;
+      return { ok: true, bookingConfirmed: true };
+    });
+
+    response.status(webhookResult.ok === false ? 400 : 200).json(webhookResult);
   });
 
   app.get("/bookings/:bookingId/success", requireAuth, async (request, response) => {
@@ -1823,6 +2181,11 @@ function createApp() {
         message: "Booking not found.",
         platform: snapshot.platform
       });
+      return;
+    }
+
+    if (booking.paymentStatus !== "paid") {
+      response.redirect(`/bookings/${booking.id}/pay`);
       return;
     }
 
@@ -1911,24 +2274,29 @@ function createApp() {
         booking.cancelledAt = cancelledAt;
         booking.refund = refund;
 
-        data.payments.push({
-          id: randomUUID(),
-          bookingId: booking.id,
-          hotelId: booking.hotelId,
-          userId: booking.customerUserId || null,
-          listingId: null,
-          transactionRef: `HUT-RFND-${Date.now()}`,
-          transactionType: "refund",
-          paymentProvider: booking.paymentProvider || "n/a",
-          paymentExternalId: booking.paymentExternalId || booking.paymentReference || "n/a",
-          grossAmount: -refund.refundTotal,
-          hotelPayout: -Math.min(booking.pricing.hotelPayout, refund.refundTotal),
-          platformEarning: -Math.max(0, refund.refundTotal - booking.pricing.hotelPayout),
-          commissionRate: booking.pricing.commissionRateApplied,
-          hotelBankAccount: hotel.bankAccount,
-          platformBankAccount: data.platform.bankAccount,
-          createdAt: cancelledAt
-        });
+        data.payments.push(
+          createPaymentRecord({
+            id: randomUUID(),
+            bookingId: booking.id,
+            hotelId: booking.hotelId,
+            userId: booking.customerUserId || null,
+            listingId: null,
+            transactionRef: `HUT-RFND-${Date.now()}`,
+            transactionType: "refund",
+            paymentProvider: booking.paymentProvider || "n/a",
+            paymentExternalId: booking.paymentExternalId || booking.paymentReference || "n/a",
+            grossAmount: -refund.refundTotal,
+            hotelPayout: -Math.min(booking.pricing.hotelPayout, refund.refundTotal),
+            platformEarning: -Math.max(0, refund.refundTotal - booking.pricing.hotelPayout),
+            commissionRate: booking.pricing.commissionRateApplied,
+            hotelBankAccount: hotel.bankAccount,
+            platformBankAccount: data.platform.bankAccount,
+            paymentStatus: "paid",
+            settled: true,
+            settledAt: cancelledAt,
+            createdAt: cancelledAt
+          })
+        );
 
         await sendCancellationAcknowledgements({
           data,
@@ -1971,13 +2339,25 @@ function createApp() {
     const unlocks = snapshot.marketplaceUnlocks
       .filter((unlock) => unlock.buyerUserId === user.id)
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const pendingTopups = snapshot.walletTopupIntents
+      .filter(
+        (intent) =>
+          intent.userId === user.id &&
+          intent.status !== "credited" &&
+          intent.status !== "failed"
+      )
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     const canTopUp = request.currentUser.role !== "hotel_admin";
 
     response.render("wallet", {
       walletUser: user,
       walletTransactions: transactions,
       unlocks,
+      pendingTopups,
       canTopUp,
+      paymentProvider: getPaymentProvider(),
+      collectionAccountAlias:
+        snapshot.platform.collectionAccountAlias || "HuT Business Collection Account",
       contactUnlockFeeNaira,
       marketplacePoints: user.marketplacePoints,
       marketplacePaidUnlockCount: user.marketplacePaidUnlockCount,
@@ -1993,10 +2373,19 @@ function createApp() {
     }
 
     const amount = Math.round(toNumber(request.body.amount, 0));
-    const reference = sanitizeMarketplaceText(request.body.reference, `BANK-${Date.now()}`);
+    const provider = getPaymentProvider();
 
     if (amount <= 0) {
       setFlash(request, "error", "Top-up amount must be greater than zero.");
+      response.redirect("/wallet");
+      return;
+    }
+    if (nodeEnv === "production" && provider === "mock") {
+      setFlash(
+        request,
+        "error",
+        "Mock provider is blocked in production. Configure Paystack or Flutterwave."
+      );
       response.redirect("/wallet");
       return;
     }
@@ -2006,41 +2395,144 @@ function createApp() {
       if (!user) {
         return { error: "Wallet user not found." };
       }
+      ensureUserWallet(user);
 
-      const paymentId = randomUUID();
-      const walletEntryResult = createWalletEntry(data, {
-        userId: user.id,
-        type: "wallet_topup",
-        direction: "credit",
-        amount,
-        description: "Wallet top-up via transfer to platform account",
-        reference,
-        relatedPaymentId: paymentId
-      });
-      if (walletEntryResult.error) {
-        return { error: walletEntryResult.error };
+      // Legacy trust-based credit remains only for non-production safety/testing.
+      if (provider === "mock" && canTrustManualWalletTopup()) {
+        const paymentId = randomUUID();
+        const manualReference = `MANUAL-${Date.now()}`;
+        const walletEntryResult = createWalletEntry(data, {
+          userId: user.id,
+          type: "wallet_topup",
+          direction: "credit",
+          amount,
+          description: "Wallet top-up via non-production trusted flow",
+          reference: manualReference,
+          relatedPaymentId: paymentId
+        });
+        if (walletEntryResult.error) {
+          return { error: walletEntryResult.error };
+        }
+
+        data.payments.push(
+          createPaymentRecord({
+            id: paymentId,
+            bookingId: null,
+            hotelId: null,
+            userId: user.id,
+            listingId: null,
+            transactionRef: manualReference,
+            transactionType: "wallet_topup",
+            paymentProvider: "mock",
+            paymentExternalId: manualReference,
+            grossAmount: amount,
+            hotelPayout: 0,
+            platformEarning: 0,
+            commissionRate: 0,
+            hotelBankAccount: null,
+            platformBankAccount: data.platform.bankAccount,
+            paymentStatus: "paid",
+            settled: true,
+            settledAt: new Date().toISOString(),
+            createdAt: new Date().toISOString()
+          })
+        );
+
+        return {
+          credited: true,
+          balanceAfter: walletEntryResult.balanceAfter
+        };
       }
 
-      data.payments.push({
-        id: paymentId,
-        bookingId: null,
-        hotelId: null,
-        userId: user.id,
-        listingId: null,
-        transactionRef: `HUT-WTOP-${Date.now()}`,
-        transactionType: "wallet_topup",
-        paymentProvider: "bank_transfer",
-        paymentExternalId: reference,
-        grossAmount: amount,
-        hotelPayout: 0,
-        platformEarning: 0,
-        commissionRate: 0,
-        hotelBankAccount: null,
-        platformBankAccount: data.platform.bankAccount,
-        createdAt: new Date().toISOString()
-      });
+      const intentId = randomUUID();
+      try {
+        const paymentInit = await initializeWalletTopup({
+          intentId,
+          amountNaira: amount,
+          customerName: user.name,
+          email: user.email,
+          phone: user.phone,
+          callbackBaseUrl: getCallbackBaseUrl(request)
+        });
+        const nowIso = new Date().toISOString();
+        const paymentRecordId = randomUUID();
+        data.walletTopupIntents.push({
+          id: intentId,
+          userId: user.id,
+          amount,
+          provider: paymentInit.provider,
+          reference: paymentInit.reference,
+          paymentUrl: paymentInit.paymentUrl || null,
+          status: "pending_verification",
+          paymentRecordId,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+          creditedAt: null
+        });
 
-      return { balanceAfter: walletEntryResult.balanceAfter };
+        data.paymentSessions.push({
+          id: randomUUID(),
+          bookingId: null,
+          walletTopupId: intentId,
+          sessionType: "wallet_topup",
+          provider: paymentInit.provider,
+          reference: paymentInit.reference,
+          paymentUrl: paymentInit.paymentUrl || null,
+          status: paymentInit.status === "paid" ? "paid" : "pending_verification",
+          createdAt: nowIso
+        });
+
+        data.payments.push(
+          createPaymentRecord({
+            id: paymentRecordId,
+            bookingId: null,
+            hotelId: null,
+            userId: user.id,
+            listingId: null,
+            transactionRef: paymentInit.reference,
+            transactionType: "wallet_topup",
+            paymentProvider: paymentInit.provider,
+            paymentExternalId: paymentInit.reference,
+            grossAmount: amount,
+            hotelPayout: 0,
+            platformEarning: 0,
+            commissionRate: 0,
+            hotelBankAccount: null,
+            platformBankAccount: data.platform.bankAccount,
+            paymentStatus: paymentInit.status === "paid" ? "paid" : "pending_verification",
+            settled: paymentInit.status === "paid",
+            settledAt: paymentInit.status === "paid" ? nowIso : null,
+            createdAt: nowIso
+          })
+        );
+
+        if (paymentInit.status === "paid") {
+          const topupResult = applyWalletTopupCredit({
+            data,
+            intent: data.walletTopupIntents.find((intent) => intent.id === intentId),
+            transactionReference: paymentInit.reference,
+            externalId: paymentInit.reference,
+            provider: paymentInit.provider
+          });
+          if (topupResult.error) {
+            return { error: topupResult.error };
+          }
+          return {
+            credited: true,
+            balanceAfter: topupResult.balanceAfter
+          };
+        }
+
+        return {
+          intentId,
+          redirectType: "payment",
+          paymentUrl: paymentInit.paymentUrl
+        };
+      } catch (error) {
+        return {
+          error: `Unable to initialize wallet top-up: ${error.message}`
+        };
+      }
     });
 
     if (result.error) {
@@ -2049,12 +2541,24 @@ function createApp() {
       return;
     }
 
-    setFlash(
-      request,
-      "success",
-      `Wallet funded successfully. New balance: ${formatNaira(result.balanceAfter)}`
-    );
+    if (result.redirectType === "payment" && result.paymentUrl) {
+      setFlash(
+        request,
+        "success",
+        "Top-up session created. Wallet balance updates after verified provider webhook."
+      );
+      response.redirect(result.paymentUrl);
+      return;
+    }
+
+    setFlash(request, "success", `Wallet funded successfully. New balance: ${formatNaira(result.balanceAfter)}`);
     response.redirect("/wallet");
+  });
+
+  app.get("/wallet/topup/callback/:provider", (request, response) => {
+    const provider = encodeURIComponent(String(request.params.provider || "").toLowerCase());
+    const query = new URLSearchParams(request.query || {}).toString();
+    response.redirect(`/payments/callback/${provider}${query ? `?${query}` : ""}`);
   });
 
   app.get("/marketplace", async (request, response) => {
@@ -2310,24 +2814,29 @@ function createApp() {
         createdAt: new Date().toISOString()
       });
 
-      data.payments.push({
-        id: paymentId,
-        bookingId: null,
-        hotelId: null,
-        userId: user.id,
-        listingId: null,
-        transactionRef: `HUT-MPLN-${Date.now()}`,
-        transactionType: "marketplace_plan_purchase",
-        paymentProvider: "wallet",
-        paymentExternalId: `WALLET-${user.id}`,
-        grossAmount: plan.amount,
-        hotelPayout: 0,
-        platformEarning: plan.amount,
-        commissionRate: 0,
-        hotelBankAccount: null,
-        platformBankAccount: data.platform.bankAccount,
-        createdAt: new Date().toISOString()
-      });
+      data.payments.push(
+        createPaymentRecord({
+          id: paymentId,
+          bookingId: null,
+          hotelId: null,
+          userId: user.id,
+          listingId: null,
+          transactionRef: `HUT-MPLN-${Date.now()}`,
+          transactionType: "marketplace_plan_purchase",
+          paymentProvider: "wallet",
+          paymentExternalId: `WALLET-${user.id}`,
+          grossAmount: plan.amount,
+          hotelPayout: 0,
+          platformEarning: plan.amount,
+          commissionRate: 0,
+          hotelBankAccount: null,
+          platformBankAccount: data.platform.bankAccount,
+          paymentStatus: "paid",
+          settled: true,
+          settledAt: new Date().toISOString(),
+          createdAt: new Date().toISOString()
+        })
+      );
 
       const nextLimitState = canCreateMarketplaceListing(data, user.id);
       return {
@@ -2717,24 +3226,29 @@ function createApp() {
             earnedPoints = 5;
           }
 
-          data.payments.push({
-            id: paymentId,
-            bookingId: null,
-            hotelId: null,
-            userId: buyer.id,
-            listingId: listing.id,
-            transactionRef: `HUT-MKT-${Date.now()}`,
-            transactionType: "marketplace_contact_unlock",
-            paymentProvider: "wallet",
-            paymentExternalId: `WALLET-${buyer.id}`,
-            grossAmount: contactUnlockFeeNaira,
-            hotelPayout: 0,
-            platformEarning: contactUnlockFeeNaira,
-            commissionRate: 0,
-            hotelBankAccount: null,
-            platformBankAccount: data.platform.bankAccount,
-            createdAt: new Date().toISOString()
-          });
+          data.payments.push(
+            createPaymentRecord({
+              id: paymentId,
+              bookingId: null,
+              hotelId: null,
+              userId: buyer.id,
+              listingId: listing.id,
+              transactionRef: `HUT-MKT-${Date.now()}`,
+              transactionType: "marketplace_contact_unlock",
+              paymentProvider: "wallet",
+              paymentExternalId: `WALLET-${buyer.id}`,
+              grossAmount: contactUnlockFeeNaira,
+              hotelPayout: 0,
+              platformEarning: contactUnlockFeeNaira,
+              commissionRate: 0,
+              hotelBankAccount: null,
+              platformBankAccount: data.platform.bankAccount,
+              paymentStatus: "paid",
+              settled: true,
+              settledAt: new Date().toISOString(),
+              createdAt: new Date().toISOString()
+            })
+          );
         }
 
         data.marketplaceUnlocks.push({
@@ -2749,24 +3263,29 @@ function createApp() {
         });
 
         if (usedPoints) {
-          data.payments.push({
-            id: randomUUID(),
-            bookingId: null,
-            hotelId: null,
-            userId: buyer.id,
-            listingId: listing.id,
-            transactionRef: `HUT-MKT-PTS-${Date.now()}`,
-            transactionType: "marketplace_contact_unlock_points",
-            paymentProvider: "points",
-            paymentExternalId: `POINTS-${buyer.id}`,
-            grossAmount: 0,
-            hotelPayout: 0,
-            platformEarning: 0,
-            commissionRate: 0,
-            hotelBankAccount: null,
-            platformBankAccount: data.platform.bankAccount,
-            createdAt: new Date().toISOString()
-          });
+          data.payments.push(
+            createPaymentRecord({
+              id: randomUUID(),
+              bookingId: null,
+              hotelId: null,
+              userId: buyer.id,
+              listingId: listing.id,
+              transactionRef: `HUT-MKT-PTS-${Date.now()}`,
+              transactionType: "marketplace_contact_unlock_points",
+              paymentProvider: "points",
+              paymentExternalId: `POINTS-${buyer.id}`,
+              grossAmount: 0,
+              hotelPayout: 0,
+              platformEarning: 0,
+              commissionRate: 0,
+              hotelBankAccount: null,
+              platformBankAccount: data.platform.bankAccount,
+              paymentStatus: "paid",
+              settled: true,
+              settledAt: new Date().toISOString(),
+              createdAt: new Date().toISOString()
+            })
+          );
         }
 
         return {
@@ -2929,6 +3448,8 @@ function createApp() {
         address,
         bankName,
         bankAccount,
+        paystackSubaccountCode,
+        flutterwaveSubaccountId,
         cancellationPolicy,
         commissionRate,
         pickupFee,
@@ -2972,6 +3493,8 @@ function createApp() {
           address: String(address || "").trim(),
           bankName: String(bankName || "").trim(),
           bankAccount: String(bankAccount || "").trim(),
+          paystackSubaccountCode: String(paystackSubaccountCode || "").trim(),
+          flutterwaveSubaccountId: String(flutterwaveSubaccountId || "").trim(),
           cancellationPolicy: String(cancellationPolicy || "flexible"),
           commissionRate: normalizeCommissionRatePercentInput(
             commissionRate,
@@ -3089,24 +3612,29 @@ function createApp() {
             expiresAt: hotel.premiumListingExpiresAt
           });
 
-          data.payments.push({
-            id: randomUUID(),
-            bookingId: null,
-            hotelId: hotel.id,
-            userId: request.currentUser.id,
-            listingId: null,
-            transactionRef: `HUT-PREM-${Date.now()}`,
-            transactionType: "premium_subscription",
-            paymentProvider: "manual",
-            paymentExternalId: "manual",
-            grossAmount: data.platform.premiumSubscriptionMonthlyFee,
-            hotelPayout: 0,
-            platformEarning: data.platform.premiumSubscriptionMonthlyFee,
-            commissionRate: 0,
-            hotelBankAccount: hotel.bankAccount,
-            platformBankAccount: data.platform.bankAccount,
-            createdAt: new Date().toISOString()
-          });
+          data.payments.push(
+            createPaymentRecord({
+              id: randomUUID(),
+              bookingId: null,
+              hotelId: hotel.id,
+              userId: request.currentUser.id,
+              listingId: null,
+              transactionRef: `HUT-PREM-${Date.now()}`,
+              transactionType: "premium_subscription",
+              paymentProvider: "manual",
+              paymentExternalId: "manual",
+              grossAmount: data.platform.premiumSubscriptionMonthlyFee,
+              hotelPayout: 0,
+              platformEarning: data.platform.premiumSubscriptionMonthlyFee,
+              commissionRate: 0,
+              hotelBankAccount: hotel.bankAccount,
+              platformBankAccount: data.platform.bankAccount,
+              paymentStatus: "paid",
+              settled: true,
+              settledAt: new Date().toISOString(),
+              createdAt: new Date().toISOString()
+            })
+          );
         }
 
         return { hotelId: hotel.id };
@@ -3137,6 +3665,8 @@ function createApp() {
         about,
         bankName,
         bankAccount,
+        paystackSubaccountCode,
+        flutterwaveSubaccountId,
         cancellationPolicy,
         commissionRate,
         pickupFee,
@@ -3190,6 +3720,8 @@ function createApp() {
         hotel.description = aboutText;
         hotel.bankName = normalizedBankName;
         hotel.bankAccount = normalizedBankAccount;
+        hotel.paystackSubaccountCode = String(paystackSubaccountCode || "").trim();
+        hotel.flutterwaveSubaccountId = String(flutterwaveSubaccountId || "").trim();
         hotel.cancellationPolicy = String(cancellationPolicy || "flexible");
         hotel.commissionRate = normalizeCommissionRatePercentInput(
           commissionRate,
@@ -3349,24 +3881,29 @@ function createApp() {
           expiresAt: newExpiry
         });
 
-        data.payments.push({
-          id: randomUUID(),
-          bookingId: null,
-          hotelId,
-          userId: request.currentUser.id,
-          listingId: null,
-          transactionRef: `HUT-PREM-${Date.now()}`,
-          transactionType: "premium_subscription",
-          paymentProvider: "manual",
-          paymentExternalId: "manual",
-          grossAmount: data.platform.premiumSubscriptionMonthlyFee,
-          hotelPayout: 0,
-          platformEarning: data.platform.premiumSubscriptionMonthlyFee,
-          commissionRate: 0,
-          hotelBankAccount: hotel.bankAccount,
-          platformBankAccount: data.platform.bankAccount,
-          createdAt: new Date().toISOString()
-        });
+        data.payments.push(
+          createPaymentRecord({
+            id: randomUUID(),
+            bookingId: null,
+            hotelId,
+            userId: request.currentUser.id,
+            listingId: null,
+            transactionRef: `HUT-PREM-${Date.now()}`,
+            transactionType: "premium_subscription",
+            paymentProvider: "manual",
+            paymentExternalId: "manual",
+            grossAmount: data.platform.premiumSubscriptionMonthlyFee,
+            hotelPayout: 0,
+            platformEarning: data.platform.premiumSubscriptionMonthlyFee,
+            commissionRate: 0,
+            hotelBankAccount: hotel.bankAccount,
+            platformBankAccount: data.platform.bankAccount,
+            paymentStatus: "paid",
+            settled: true,
+            settledAt: new Date().toISOString(),
+            createdAt: new Date().toISOString()
+          })
+        );
 
         return { ok: true };
       });

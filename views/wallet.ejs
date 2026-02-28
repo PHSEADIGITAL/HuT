@@ -34,27 +34,56 @@
   <h2>Fund wallet</h2>
   <% if (canTopUp) { %>
     <p class="muted">
-      Transfer to platform account (<strong><%= platform.bankAccount %></strong>) and submit details
-      below to credit your in-app wallet.
+      Top-ups use secure checkout and are credited only after verified provider webhook confirmation.
+      Funds are collected through <strong><%= collectionAccountAlias %></strong>.
     </p>
     <form class="grid-form compact" method="POST" action="/wallet/topup">
       <div>
         <label for="amount">Amount (NGN)</label>
         <input id="amount" name="amount" type="number" min="1" required />
       </div>
-      <div>
-        <label for="reference">Transfer reference</label>
-        <input id="reference" name="reference" type="text" required />
-      </div>
+      <input type="hidden" name="reference" value="" />
       <div class="align-end">
-        <button type="submit">Credit wallet</button>
+        <button type="submit">Fund wallet securely</button>
       </div>
     </form>
+    <p class="muted tiny">Payment provider: <strong><%= paymentProvider %></strong></p>
   <% } else { %>
     <p class="muted">
       Wallet top-up is disabled for hotel admin accounts.
     </p>
   <% } %>
+</section>
+
+<section class="card">
+  <h2>Pending top-ups</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Created</th>
+          <th>Provider</th>
+          <th>Reference</th>
+          <th>Amount</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!pendingTopups.length) { %>
+          <tr><td colspan="5" class="muted">No pending top-ups.</td></tr>
+        <% } %>
+        <% pendingTopups.forEach((intent) => { %>
+          <tr>
+            <td><%= intent.createdAt %></td>
+            <td><%= intent.provider %></td>
+            <td><%= intent.reference %></td>
+            <td><%= formatNaira(intent.amount) %></td>
+            <td><%= intent.status %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
 </section>
 
 <section class="card">
