@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   Image,
+  Linking,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -11,62 +12,150 @@ import {
   View
 } from "react-native";
 import { apiRequest } from "../api/client";
+import { useAuth } from "../context/AuthContext";
 
 function formatNaira(amount) {
   return `₦${Number(amount || 0).toLocaleString("en-NG")}`;
 }
 
+function isoDateOffset(daysFromToday) {
+  const date = new Date();
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCDate(date.getUTCDate() + daysFromToday);
+  return date.toISOString().slice(0, 10);
+}
+
+const SUPPORT_WHATSAPP = "2348030001122";
+
 export default function StaysScreen({ navigation }) {
+  const { user } = useAuth();
   const [destination, setDestination] = useState("Bonny Island");
+  const [checkInDate, setCheckInDate] = useState(isoDateOffset(1));
+  const [checkOutDate, setCheckOutDate] = useState(isoDateOffset(2));
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [searchState, setSearchState] = useState(null);
   const [hotels, setHotels] = useState([]);
 
-  const loadHotels = useCallback(async (destinationValue, isRefresh = false) => {
-    if (isRefresh) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-    setError("");
-    try {
-      const payload = await apiRequest(
-        `/api/stays?destination=${encodeURIComponent(destinationValue || "Bonny Island")}`
-      );
-      setHotels(payload.hotels || []);
-      setSearchState(payload.search || null);
-      if (payload.search?.destination) {
-        setDestination(payload.search.destination);
+  const loadHotels = useCallback(
+    async (params = {}, isRefresh = false) => {
+      const nextDestination = params.destination || destination || "Bonny Island";
+      const nextCheckIn = params.checkInDate || checkInDate;
+      const nextCheckOut = params.checkOutDate || checkOutDate;
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
       }
-    } catch (requestError) {
-      setError(requestError.message);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+      setError("");
+      try {
+        const query = [
+          `destination=${encodeURIComponent(nextDestination)}`,
+          `checkInDate=${encodeURIComponent(nextCheckIn)}`,
+          `checkOutDate=${encodeURIComponent(nextCheckOut)}`
+        ].join("&");
+        const payload = await apiRequest(`/api/stays?${query}`);
+        setHotels(payload.hotels || []);
+        setSearchState(payload.search || null);
+        if (payload.search?.destination) {
+          setDestination(payload.search.destination);
+        }
+        if (payload.search?.checkInDate) {
+          setCheckInDate(payload.search.checkInDate);
+        }
+        if (payload.search?.checkOutDate) {
+          setCheckOutDate(payload.search.checkOutDate);
+        }
+      } catch (requestError) {
+        setError(requestError.message);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [checkInDate, checkOutDate, destination]
+  );
 
   useEffect(() => {
-    loadHotels("Bonny Island");
+    loadHotels(
+      {
+        destination: "Bonny Island",
+        checkInDate: isoDateOffset(1),
+        checkOutDate: isoDateOffset(2)
+      },
+      false
+    );
   }, [loadHotels]);
+
+  const canSeeAdmin = user?.role === "hotel_admin" || user?.role === "platform_admin";
+  const canSeeOnboardHotel = user?.role === "platform_admin";
+  const resultCount = useMemo(() => hotels.length, [hotels.length]);
+
+  async function openWhatsAppSupport() {
+    try {
+      await Linking.openURL(`https://wa.me/${SUPPORT_WHATSAPP}`);
+    } catch (_error) {
+      setError("Unable to open WhatsApp support right now.");
+    }
+  }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Stays</Text>
-      <Text style={styles.subtitle}>Find available hotels and compare rates.</Text>
+      <View style={styles.topRow}>
+        <Text style={styles.brand}>HuT!</Text>
+        <View style={styles.topActions}>
+          <Pressable style={[styles.navChip, styles.navChipActive]}>
+            <Text style={[styles.navChipText, styles.navChipTextActive]}>Hotels</Text>
+          </Pressable>
+          {canSeeAdmin ? (
+            <Pressable style={styles.navChip} onPress={() => navigation.navigate("AdminHotels")}>
+              <Text style={styles.navChipText}>Hotel Admin</Text>
+            </Pressable>
+          ) : null}
+          {canSeeOnboardHotel ? (
+            <Pressable style={styles.navChip} onPress={() => navigation.navigate("OwnerDashboard")}>
+              <Text style={styles.navChipText}>Onboard Hotel</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
 
-      <View style={styles.searchRow}>
-        <TextInput
-          style={styles.searchInput}
-          value={destination}
-          placeholder="Destination"
-          onChangeText={setDestination}
-        />
-        <Pressable style={styles.searchButton} onPress={() => loadHotels(destination)}>
-          <Text style={styles.searchButtonText}>Search</Text>
-        </Pressable>
+      <View style={styles.heroCard}>
+        <Text style={styles.title}>Book trusted hotels in Bonny Island</Text>
+        <Text style={styles.subtitle}>Real-time availability, clear pricing, and secure checkout.</Text>
+        <View style={styles.searchRow}>
+          <TextInput
+            style={styles.searchInput}
+            value={destination}
+            placeholder="Destination"
+            onChangeText={setDestination}
+          />
+          <TextInput
+            style={styles.searchInput}
+            value={checkInDate}
+            placeholder="Check-in (YYYY-MM-DD)"
+            onChangeText={setCheckInDate}
+          />
+          <TextInput
+            style={styles.searchInput}
+            value={checkOutDate}
+            placeholder="Check-out (YYYY-MM-DD)"
+            onChangeText={setCheckOutDate}
+          />
+          <Pressable
+            style={styles.searchButton}
+            onPress={() =>
+              loadHotels({
+                destination,
+                checkInDate,
+                checkOutDate
+              })
+            }
+          >
+            <Text style={styles.searchButtonText}>Update availability</Text>
+          </Pressable>
+        </View>
       </View>
 
       {loading ? (
@@ -76,7 +165,16 @@ export default function StaysScreen({ navigation }) {
       ) : error ? (
         <View style={styles.centered}>
           <Text style={styles.error}>{error}</Text>
-          <Pressable style={styles.retryButton} onPress={() => loadHotels(destination)}>
+          <Pressable
+            style={styles.retryButton}
+            onPress={() =>
+              loadHotels({
+                destination,
+                checkInDate,
+                checkOutDate
+              })
+            }
+          >
             <Text style={styles.retryButtonText}>Retry</Text>
           </Pressable>
         </View>
@@ -85,7 +183,24 @@ export default function StaysScreen({ navigation }) {
           data={hotels}
           keyExtractor={(item) => item.id}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => loadHotels(destination, true)} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() =>
+                loadHotels(
+                  {
+                    destination,
+                    checkInDate,
+                    checkOutDate
+                  },
+                  true
+                )
+              }
+            />
+          }
+          ListHeaderComponent={
+            <Text style={styles.resultSummary}>
+              {resultCount} hotel{resultCount === 1 ? "" : "s"} available
+            </Text>
           }
           renderItem={({ item }) => (
             <Pressable
@@ -93,21 +208,28 @@ export default function StaysScreen({ navigation }) {
               onPress={() =>
                 navigation.navigate("StayDetail", {
                   hotelId: item.id,
-                  checkInDate: searchState?.checkInDate,
-                  checkOutDate: searchState?.checkOutDate
+                  checkInDate: searchState?.checkInDate || checkInDate,
+                  checkOutDate: searchState?.checkOutDate || checkOutDate
                 })
               }
             >
+              {item.premiumListingActive ? (
+                <View style={styles.premiumBadge}>
+                  <Text style={styles.premiumBadgeText}>Premium Badge</Text>
+                </View>
+              ) : null}
               <Image source={{ uri: item.coverImage }} style={styles.image} />
               <View style={styles.cardBody}>
                 <Text style={styles.cardTitle}>{item.name}</Text>
                 <Text style={styles.meta}>
-                  {item.propertyType} • {item.location}
+                  {item.location}
                 </Text>
                 <Text style={styles.meta}>
-                  {item.reviewLabel} {item.reviewScore}/10 ({item.reviewCount} reviews)
+                  Now {formatNaira(item.minPrice)}/night • {item.roomsAvailable} rooms available
                 </Text>
-                <Text style={styles.price}>Now {formatNaira(item.minPrice)}</Text>
+                <View style={styles.cardButton}>
+                  <Text style={styles.cardButtonText}>View rooms and book</Text>
+                </View>
               </View>
             </Pressable>
           )}
@@ -119,6 +241,10 @@ export default function StaysScreen({ navigation }) {
           contentContainerStyle={styles.listContent}
         />
       )}
+
+      <Pressable style={styles.whatsAppFab} onPress={openWhatsAppSupport}>
+        <Text style={styles.whatsAppFabText}>WhatsApp Support</Text>
+      </Pressable>
     </View>
   );
 }
@@ -126,45 +252,97 @@ export default function StaysScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f2f5ff",
+    backgroundColor: "#f7f8fc",
     paddingHorizontal: 14,
     paddingTop: 10
   },
+  topRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10
+  },
+  brand: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#0f172a"
+  },
+  topActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    justifyContent: "flex-end"
+  },
+  navChip: {
+    borderWidth: 1,
+    borderColor: "#d6e1f2",
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 6
+  },
+  navChipActive: {
+    borderColor: "#0f172a",
+    backgroundColor: "#0f172a"
+  },
+  navChipText: {
+    fontSize: 12,
+    color: "#1f2937",
+    fontWeight: "700"
+  },
+  navChipTextActive: {
+    color: "#fff"
+  },
+  heroCard: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#dce5f3",
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 12,
+    gap: 8
+  },
   title: {
-    fontSize: 27,
+    fontSize: 24,
     fontWeight: "800",
     color: "#0f1b2d"
   },
   subtitle: {
-    marginTop: 4,
+    marginTop: 2,
     color: "#5d6a83"
   },
   searchRow: {
-    marginTop: 12,
-    flexDirection: "row",
+    marginTop: 4,
     gap: 8
   },
   searchInput: {
-    flex: 1,
     borderWidth: 1,
     borderColor: "#d6e1f2",
     borderRadius: 10,
     backgroundColor: "#fff",
-    paddingHorizontal: 10
+    paddingHorizontal: 10,
+    paddingVertical: 10
   },
   searchButton: {
-    backgroundColor: "#3665f3",
+    backgroundColor: "#0f172a",
     borderRadius: 10,
     paddingHorizontal: 14,
-    justifyContent: "center"
+    paddingVertical: 12,
+    justifyContent: "center",
+    alignItems: "center"
   },
   searchButtonText: {
     color: "#fff",
     fontWeight: "700"
   },
+  resultSummary: {
+    marginVertical: 10,
+    color: "#334155",
+    fontWeight: "600",
+    fontSize: 13
+  },
   listContent: {
-    paddingTop: 12,
-    paddingBottom: 18
+    paddingBottom: 88
   },
   card: {
     backgroundColor: "#fff",
@@ -172,7 +350,23 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#d6e1f2"
+    borderColor: "#d6e1f2",
+    position: "relative"
+  },
+  premiumBadge: {
+    position: "absolute",
+    zIndex: 2,
+    top: 10,
+    left: 10,
+    borderRadius: 999,
+    backgroundColor: "#f59e0b",
+    paddingHorizontal: 10,
+    paddingVertical: 4
+  },
+  premiumBadgeText: {
+    color: "#111827",
+    fontSize: 11,
+    fontWeight: "800"
   },
   image: {
     width: "100%",
@@ -191,11 +385,17 @@ const styles = StyleSheet.create({
     color: "#5d6a83",
     fontSize: 12
   },
-  price: {
+  cardButton: {
     marginTop: 8,
-    color: "#0d2d62",
-    fontSize: 16,
-    fontWeight: "700"
+    borderRadius: 8,
+    backgroundColor: "#111827",
+    alignItems: "center",
+    paddingVertical: 10
+  },
+  cardButtonText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 13
   },
   centered: {
     flex: 1,
@@ -219,5 +419,21 @@ const styles = StyleSheet.create({
   retryButtonText: {
     color: "#1f2937",
     fontWeight: "700"
+  },
+  whatsAppFab: {
+    position: "absolute",
+    right: 14,
+    bottom: 14,
+    borderRadius: 999,
+    backgroundColor: "#10b981",
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderWidth: 1,
+    borderColor: "#047857"
+  },
+  whatsAppFabText: {
+    color: "#052e16",
+    fontWeight: "800",
+    fontSize: 12
   }
 });
