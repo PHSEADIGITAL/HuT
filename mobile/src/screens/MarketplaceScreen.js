@@ -18,7 +18,7 @@ function formatNaira(amount) {
 }
 
 export default function MarketplaceScreen({ navigation }) {
-  const { token, isAuthenticated } = useAuth();
+  const { token, isAuthenticated, user } = useAuth();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -59,19 +59,38 @@ export default function MarketplaceScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Marketplace</Text>
-      <Text style={styles.subtitle}>Browse local listings and seller ratings.</Text>
+      <View style={styles.topRow}>
+        <Text style={styles.brand}>HuT!</Text>
+        <View style={styles.topActions}>
+          <Pressable style={styles.navChip} onPress={() => navigation.navigate("Stays")}>
+            <Text style={styles.navChipText}>Hotels</Text>
+          </Pressable>
+          <Pressable style={[styles.navChip, styles.navChipActive]}>
+            <Text style={[styles.navChipText, styles.navChipTextActive]}>Marketplace</Text>
+          </Pressable>
+          {user?.role === "hotel_admin" || user?.role === "platform_admin" ? (
+            <Pressable style={styles.navChip} onPress={() => navigation.navigate("AdminHotels")}>
+              <Text style={styles.navChipText}>Hotel Admin</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
 
-      <View style={styles.searchRow}>
-        <TextInput
-          style={styles.searchInput}
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search listings"
-        />
-        <Pressable style={styles.searchButton} onPress={() => loadListings()}>
-          <Text style={styles.searchButtonText}>Find</Text>
-        </Pressable>
+      <View style={styles.heroCard}>
+        <Text style={styles.title}>Marketplace</Text>
+        <Text style={styles.subtitle}>Browse local listings and seller ratings.</Text>
+
+        <View style={styles.searchRow}>
+          <TextInput
+            style={styles.searchInput}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search listings"
+          />
+          <Pressable style={styles.searchButton} onPress={() => loadListings()}>
+            <Text style={styles.searchButtonText}>Find</Text>
+          </Pressable>
+        </View>
       </View>
 
       {account ? (
@@ -170,9 +189,54 @@ export default function MarketplaceScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f2f5ff",
+    backgroundColor: "#f7f8fc",
     paddingHorizontal: 14,
     paddingTop: 10
+  },
+  topRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10
+  },
+  brand: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#0f172a"
+  },
+  topActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    justifyContent: "flex-end"
+  },
+  navChip: {
+    borderWidth: 1,
+    borderColor: "#d6e1f2",
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 6
+  },
+  navChipActive: {
+    borderColor: "#0f172a",
+    backgroundColor: "#0f172a"
+  },
+  navChipText: {
+    color: "#1f2937",
+    fontSize: 12,
+    fontWeight: "700"
+  },
+  navChipTextActive: {
+    color: "#fff"
+  },
+  heroCard: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#dce5f3",
+    borderRadius: 12,
+    backgroundColor: "#fff",
+    padding: 12
   },
   title: {
     fontSize: 27,
@@ -197,7 +261,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10
   },
   searchButton: {
-    backgroundColor: "#3665f3",
+    backgroundColor: "#0f172a",
     borderRadius: 10,
     paddingHorizontal: 14,
     justifyContent: "center"

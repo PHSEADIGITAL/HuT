@@ -103,6 +103,22 @@ export default function StayDetailScreen({ route }) {
     return detail.rooms.find((room) => room.id === selectedRoomId) || detail.rooms[0] || null;
   }, [detail, selectedRoomId]);
 
+  const stayNights = useMemo(() => {
+    const start = new Date(`${bookingForm.checkInDate}T00:00:00.000Z`).getTime();
+    const end = new Date(`${bookingForm.checkOutDate}T00:00:00.000Z`).getTime();
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+      return 0;
+    }
+    return Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+  }, [bookingForm.checkInDate, bookingForm.checkOutDate]);
+
+  const roomSubtotalEstimate = useMemo(() => {
+    if (!selectedRoom || !stayNights) {
+      return 0;
+    }
+    return Number(selectedRoom.pricePerNight || 0) * stayNights;
+  }, [selectedRoom, stayNights]);
+
   async function submitBooking() {
     if (!isAuthenticated) {
       setBookingError("Sign in to continue booking.");
@@ -227,7 +243,13 @@ export default function StayDetailScreen({ route }) {
       <Text style={styles.price}>Now {formatNaira(detail.hotel.minPrice)} / night</Text>
       <Text style={styles.description}>{detail.hotel.about || detail.hotel.description}</Text>
 
-      <Text style={styles.sectionTitle}>Available Rooms</Text>
+      <Text style={styles.sectionTitle}>Room categories</Text>
+      <View style={styles.tableHeader}>
+        <Text style={[styles.tableHeaderCell, styles.tableColCategory]}>Category</Text>
+        <Text style={[styles.tableHeaderCell, styles.tableColPrice]}>Price/Night</Text>
+        <Text style={[styles.tableHeaderCell, styles.tableColUnits]}>Total</Text>
+        <Text style={[styles.tableHeaderCell, styles.tableColUnits]}>Available</Text>
+      </View>
       {detail.rooms.map((room) => (
         <Pressable
           key={room.id}
@@ -237,19 +259,36 @@ export default function StayDetailScreen({ route }) {
           ]}
           onPress={() => setSelectedRoomId(room.id)}
         >
-          <Text style={styles.roomTitle}>{room.category}</Text>
+          <View style={styles.tableRow}>
+            <Text style={[styles.tableCell, styles.tableColCategory]}>{room.category}</Text>
+            <Text style={[styles.tableCell, styles.tableColPrice]}>{formatNaira(room.pricePerNight)}</Text>
+            <Text style={[styles.tableCell, styles.tableColUnits]}>{room.totalUnits}</Text>
+            <Text style={[styles.tableCell, styles.tableColUnits]}>
+              {room.availability?.availableUnits ?? 0}
+            </Text>
+          </View>
           <Text style={styles.meta}>
             {room.sleeps} guests • {room.bedType}
           </Text>
-          <Text style={styles.meta}>
-            {room.availability?.availableUnits ?? 0} of {room.totalUnits} rooms available
-          </Text>
-          <Text style={styles.roomPrice}>{formatNaira(room.pricePerNight)} per night</Text>
         </Pressable>
       ))}
 
       <View style={styles.panel}>
         <Text style={styles.panelTitle}>Book this stay</Text>
+        {!isAuthenticated ? (
+          <View style={styles.noticeCard}>
+            <Text style={styles.noticeText}>Sign in as a customer to book this hotel.</Text>
+            <Pressable style={styles.primaryButton} onPress={() => navigation.navigate("Login")}>
+              <Text style={styles.primaryButtonText}>Sign in to book</Text>
+            </Pressable>
+          </View>
+        ) : null}
+        <Text style={styles.meta}>
+          Customer:{" "}
+          <Text style={styles.strongText}>
+            {user?.name || "Unknown"} ({user?.email || "No email"}) {user?.phone ? `• ${user.phone}` : ""}
+          </Text>
+        </Text>
         <Text style={styles.meta}>
           Selected room:{" "}
           <Text style={styles.strongText}>{selectedRoom?.category || "None selected"}</Text>
@@ -336,13 +375,37 @@ export default function StayDetailScreen({ route }) {
             }
           />
         </View>
+        <View style={styles.priceSummaryBox}>
+          <Text style={styles.summaryLine}>
+            Stay nights: <Text style={styles.strongText}>{stayNights || "-"}</Text>
+          </Text>
+          <Text style={styles.summaryLine}>
+            Room subtotal (estimate):{" "}
+            <Text style={styles.strongText}>{formatNaira(roomSubtotalEstimate)}</Text>
+          </Text>
+          <Text style={styles.summaryHint}>
+            Note: final total = room + service charge (% commission model) + pickup (if selected).
+          </Text>
+        </View>
         {bookingError ? <Text style={styles.errorInline}>{bookingError}</Text> : null}
         {bookingMessage ? <Text style={styles.successInline}>{bookingMessage}</Text> : null}
-        <Pressable style={styles.primaryButton} onPress={submitBooking} disabled={bookingBusy}>
+        <Pressable
+          style={[styles.primaryButton, !isAuthenticated && styles.primaryButtonDisabled]}
+          onPress={submitBooking}
+          disabled={bookingBusy || !isAuthenticated}
+        >
           <Text style={styles.primaryButtonText}>
             {bookingBusy ? "Booking..." : "Book now"}
           </Text>
         </Pressable>
+      </View>
+
+      <View style={styles.panel}>
+        <Text style={styles.panelTitle}>Cancellation summary</Text>
+        <Text style={styles.policyBullet}>• 100% refund if cancelled 48+ hours before check-in</Text>
+        <Text style={styles.policyBullet}>• 50% refund if cancelled 24-48 hours before check-in</Text>
+        <Text style={styles.policyBullet}>• No refund if cancelled less than 24 hours before check-in</Text>
+        <Text style={styles.policyBullet}>• Pickup add-on refundable only when cancelled 24+ hours earlier</Text>
       </View>
 
       <View style={styles.panel}>
@@ -471,16 +534,51 @@ const styles = StyleSheet.create({
   },
   roomCard: {
     marginHorizontal: 14,
-    marginTop: 10,
+    marginTop: 6,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: "#d6e1f2",
     padding: 10,
-    backgroundColor: "#f8fbff"
+    backgroundColor: "#f8fbff",
+    gap: 6
   },
   roomCardSelected: {
     borderColor: "#3665f3",
     backgroundColor: "#eef3ff"
+  },
+  tableHeader: {
+    marginTop: 10,
+    marginHorizontal: 14,
+    flexDirection: "row",
+    borderWidth: 1,
+    borderColor: "#d6e1f2",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    backgroundColor: "#eaf0fb"
+  },
+  tableHeaderCell: {
+    color: "#1e293b",
+    fontSize: 11,
+    fontWeight: "800"
+  },
+  tableRow: {
+    flexDirection: "row",
+    alignItems: "center"
+  },
+  tableCell: {
+    color: "#0f172a",
+    fontSize: 12,
+    fontWeight: "700"
+  },
+  tableColCategory: {
+    flex: 1.4
+  },
+  tableColPrice: {
+    flex: 1.1
+  },
+  tableColUnits: {
+    flex: 0.7
   },
   roomTitle: {
     fontWeight: "700",
@@ -537,6 +635,37 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "700"
   },
+  primaryButtonDisabled: {
+    opacity: 0.6
+  },
+  noticeCard: {
+    borderWidth: 1,
+    borderColor: "#d6e1f2",
+    backgroundColor: "#f8fafc",
+    borderRadius: 10,
+    padding: 10,
+    gap: 6
+  },
+  noticeText: {
+    color: "#334155",
+    fontSize: 13
+  },
+  priceSummaryBox: {
+    borderWidth: 1,
+    borderColor: "#d6e1f2",
+    borderRadius: 8,
+    backgroundColor: "#f8fafc",
+    padding: 8,
+    gap: 4
+  },
+  summaryLine: {
+    color: "#334155",
+    fontSize: 13
+  },
+  summaryHint: {
+    color: "#475569",
+    fontSize: 12
+  },
   errorInline: {
     color: "#dc2626"
   },
@@ -558,6 +687,10 @@ const styles = StyleSheet.create({
   reviewComment: {
     color: "#475569",
     marginTop: 4,
+    fontSize: 13
+  },
+  policyBullet: {
+    color: "#334155",
     fontSize: 13
   },
   ratingRow: {
