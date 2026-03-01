@@ -1,4 +1,4 @@
-# HuT Mobile (React Native + Expo)
+# HuT Mobile (React Native + Expo) — Android First
 
 This folder contains the React Native app for HuT, backed by the existing Node.js API.
 
@@ -34,6 +34,13 @@ Or run both backend + mobile from repository root:
 npm run dev:all
 ```
 
+Open directly on Android emulator:
+
+```bash
+# from repository root
+npm run mobile:android
+```
+
 ## API Base URL
 
 Set `EXPO_PUBLIC_API_BASE_URL` if your backend is not reachable on default values:
@@ -45,6 +52,45 @@ Example:
 
 ```bash
 EXPO_PUBLIC_API_BASE_URL=http://192.168.1.10:3000 npm start
+```
+
+For production builds, set this to your HTTPS API:
+
+```bash
+EXPO_PUBLIC_API_BASE_URL=https://api.your-domain.com
+```
+
+## Android Build (APK/AAB) with EAS
+
+This project includes `eas.json` profiles for Android builds.
+
+### One-time setup
+
+```bash
+cd mobile
+npx eas login
+npx eas build:configure
+```
+
+### Build preview APK (internal testing)
+
+```bash
+cd mobile
+EXPO_PUBLIC_API_BASE_URL=https://api.your-domain.com npm run build:android:preview
+```
+
+### Build production AAB (Play Store)
+
+```bash
+cd mobile
+EXPO_PUBLIC_API_BASE_URL=https://api.your-domain.com npm run build:android:production
+```
+
+### Submit latest build to Play Console (internal track)
+
+```bash
+cd mobile
+npm run submit:android
 ```
 
 ## Mobile Features Implemented

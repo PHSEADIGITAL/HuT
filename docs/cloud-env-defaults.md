@@ -15,6 +15,7 @@ Preinstall in the cloud image:
 2. npm 10+
 3. Expo CLI tooling (invoked via `npx expo`)
 4. Android emulator networking support (`10.0.2.2`) for local backend access
+5. EAS CLI available via `npx eas` for Android cloud builds
 
 ## Recommended startup script for cloud agents
 

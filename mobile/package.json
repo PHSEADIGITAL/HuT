@@ -7,6 +7,11 @@
     "start:tunnel": "expo start --tunnel",
     "start:lan": "expo start --lan",
     "android": "expo start --android",
+    "android:run": "expo run:android",
+    "prebuild:android": "expo prebuild --platform android",
+    "build:android:preview": "npx eas build --platform android --profile preview",
+    "build:android:production": "npx eas build --platform android --profile production",
+    "submit:android": "npx eas submit --platform android --latest",
     "ios": "expo start --ios",
     "web": "expo start --web",
     "doctor": "npx expo-doctor"
