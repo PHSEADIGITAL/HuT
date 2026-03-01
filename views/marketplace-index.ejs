@@ -9,81 +9,113 @@
 
 <section class="marketplace-ebay-layout">
   <aside class="card marketplace-filter-sidebar">
-    <h3>Filter results</h3>
-    <form class="marketplace-filter-stack" method="GET" action="/marketplace">
-      <input type="hidden" name="q" value="<%= filters.q %>" />
-      <div class="marketplace-filter-field">
-        <label for="category">Category</label>
-        <select id="category" name="category">
-          <option value="">All categories</option>
-          <% categories.forEach((category) => { %>
-            <option value="<%= category %>" <%= filters.category === category ? "selected" : "" %>>
-              <%= category %>
-            </option>
-          <% }) %>
-        </select>
-      </div>
-      <div class="marketplace-filter-field">
-        <label for="condition">Condition</label>
-        <select id="condition" name="condition">
-          <option value="">All conditions</option>
-          <% conditions.forEach((item) => { %>
-            <option value="<%= item %>" <%= filters.condition === item ? "selected" : "" %>><%= item %></option>
-          <% }) %>
-        </select>
-      </div>
-      <div class="marketplace-filter-field">
-        <label for="location">Location</label>
-        <select id="location" name="location">
-          <option value="">All locations</option>
-          <% locationOptions.forEach((item) => { %>
-            <option value="<%= item %>" <%= filters.location === item ? "selected" : "" %>><%= item %></option>
-          <% }) %>
-        </select>
-      </div>
-      <div class="marketplace-filter-field">
-        <label for="neighborhood">Neighborhood</label>
-        <select id="neighborhood" name="neighborhood">
-          <option value="">All neighborhoods</option>
-          <% neighborhoodOptions.forEach((item) => { %>
-            <option value="<%= item %>" <%= filters.neighborhood === item ? "selected" : "" %>><%= item %></option>
-          <% }) %>
-        </select>
-      </div>
-      <div class="marketplace-filter-field">
-        <label for="minPrice">Min price</label>
-        <input id="minPrice" name="minPrice" type="number" min="0" value="<%= filters.minPrice %>" />
-      </div>
-      <div class="marketplace-filter-field">
-        <label for="maxPrice">Max price</label>
-        <input id="maxPrice" name="maxPrice" type="number" min="0" value="<%= filters.maxPrice %>" />
-      </div>
-      <div class="marketplace-filter-field">
-        <label for="sort">Sort</label>
-        <select id="sort" name="sort">
-          <option value="newest" <%= filters.sort === "newest" ? "selected" : "" %>>Best Match / Newest</option>
-          <option value="price_asc" <%= filters.sort === "price_asc" ? "selected" : "" %>>Price + Shipping: lowest first</option>
-          <option value="price_desc" <%= filters.sort === "price_desc" ? "selected" : "" %>>Price + Shipping: highest first</option>
-        </select>
-      </div>
-      <div class="marketplace-filter-field">
-        <button type="submit">Apply</button>
-      </div>
-    </form>
+    <div class="marketplace-panel-launchers">
+      <button
+        type="button"
+        class="ghost-btn js-panel-toggle marketplace-panel-toggle"
+        data-target="marketplaceFiltersPanel"
+        aria-controls="marketplaceFiltersPanel"
+        aria-expanded="false"
+      >
+        Filter results
+      </button>
+      <button
+        type="button"
+        class="ghost-btn js-panel-toggle marketplace-panel-toggle"
+        data-target="marketplaceCategoriesPanel"
+        aria-controls="marketplaceCategoriesPanel"
+        aria-expanded="false"
+      >
+        Shop by category
+      </button>
+    </div>
 
-    <hr />
+    <section id="marketplaceFiltersPanel" class="marketplace-collapsible-panel" hidden>
+      <h3>Filter results</h3>
+      <form class="marketplace-filter-stack" method="GET" action="/marketplace">
+        <input type="hidden" name="q" value="<%= filters.q %>" />
+        <div class="marketplace-filter-field">
+          <label for="category">Category</label>
+          <select id="category" name="category">
+            <option value="">All categories</option>
+            <% categories.forEach((category) => { %>
+              <option value="<%= category %>" <%= filters.category === category ? "selected" : "" %>>
+                <%= category %>
+              </option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="marketplace-filter-field">
+          <label for="condition">Condition</label>
+          <select id="condition" name="condition">
+            <option value="">All conditions</option>
+            <% conditions.forEach((item) => { %>
+              <option value="<%= item %>" <%= filters.condition === item ? "selected" : "" %>><%= item %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="marketplace-filter-field">
+          <label for="location">Location</label>
+          <select id="location" name="location">
+            <option value="">All locations</option>
+            <% locationOptions.forEach((item) => { %>
+              <option value="<%= item %>" <%= filters.location === item ? "selected" : "" %>><%= item %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="marketplace-filter-field">
+          <label for="neighborhood">Neighborhood</label>
+          <select id="neighborhood" name="neighborhood">
+            <option value="">All neighborhoods</option>
+            <% neighborhoodOptions.forEach((item) => { %>
+              <option value="<%= item %>" <%= filters.neighborhood === item ? "selected" : "" %>><%= item %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="marketplace-filter-field">
+          <label for="minPrice">Min price</label>
+          <input id="minPrice" name="minPrice" type="number" min="0" value="<%= filters.minPrice %>" />
+        </div>
+        <div class="marketplace-filter-field">
+          <label for="maxPrice">Max price</label>
+          <input id="maxPrice" name="maxPrice" type="number" min="0" value="<%= filters.maxPrice %>" />
+        </div>
+        <div class="marketplace-filter-field">
+          <label for="sort">Sort</label>
+          <select id="sort" name="sort">
+            <option value="newest" <%= filters.sort === "newest" ? "selected" : "" %>>Best Match / Newest</option>
+            <option value="price_asc" <%= filters.sort === "price_asc" ? "selected" : "" %>>Price + Shipping: lowest first</option>
+            <option value="price_desc" <%= filters.sort === "price_desc" ? "selected" : "" %>>Price + Shipping: highest first</option>
+          </select>
+        </div>
+        <div class="marketplace-filter-field">
+          <button type="submit">Apply filters</button>
+        </div>
+      </form>
+    </section>
 
-    <h3>Shop by category</h3>
-    <ul class="marketplace-category-list">
-      <% categoryCards.forEach((categoryCard) => { %>
-        <li>
-          <a class="<%= categoryCard.active ? 'active' : '' %>" href="<%= categoryCard.href %>">
+    <section id="marketplaceCategoriesPanel" class="marketplace-collapsible-panel" hidden>
+      <h3>Shop by category</h3>
+      <ul class="marketplace-category-list">
+        <% categoryCards.forEach((categoryCard) => { %>
+          <li>
+            <a class="<%= categoryCard.active ? 'active' : '' %>" href="<%= categoryCard.href %>">
+              <span><%= categoryCard.name %></span>
+              <small><%= categoryCard.listingCount %></small>
+            </a>
+          </li>
+        <% }) %>
+      </ul>
+
+      <div class="marketplace-category-strip compact">
+        <% categoryCards.forEach((categoryCard) => { %>
+          <a class="marketplace-strip-item <%= categoryCard.active ? 'active' : '' %>" href="<%= categoryCard.href %>">
+            <img src="<%= categoryCard.imageUrl %>" alt="<%= categoryCard.name %> category" />
             <span><%= categoryCard.name %></span>
-            <small><%= categoryCard.listingCount %></small>
           </a>
-        </li>
-      <% }) %>
-    </ul>
+        <% }) %>
+      </div>
+    </section>
   </aside>
 
   <section class="marketplace-results-panel">
@@ -130,7 +162,7 @@
           <a class="ghost-link" href="/wallet">Wallet (<%= formatNaira(walletBalance || 0) %>)</a>
         <% } else { %>
           <a class="button-link" href="#marketplace-auth">Sign in to sell</a>
-          <a class="ghost-link" href="#marketplace-register">Create account</a>
+          <a class="ghost-link" href="/auth/register?next=%2Fmarketplace">Create account</a>
         <% } %>
       </div>
     </article>
@@ -166,81 +198,15 @@
           </div>
         </form>
 
-        <hr />
-
-        <h3 id="marketplace-register">Create account from marketplace</h3>
-        <form class="grid-form compact" method="POST" action="/auth/register">
-          <input type="hidden" name="next" value="/marketplace" />
-          <div>
-            <label for="marketRegisterName">Full name</label>
-            <input id="marketRegisterName" name="name" type="text" required />
-          </div>
-          <div>
-            <label for="marketRegisterPhone">Phone</label>
-            <input id="marketRegisterPhone" name="phone" type="tel" required />
-          </div>
-          <div class="full">
-            <label for="marketRegisterEmail">Email</label>
-            <input id="marketRegisterEmail" name="email" type="email" required />
-          </div>
-          <div class="full">
-            <label>Marketplace account type</label>
-            <div class="account-type-grid">
-              <label class="account-type-option">
-                <input
-                  type="radio"
-                  name="marketplaceAccountType"
-                  value="buyer"
-                  checked
-                  required
-                />
-                <strong>Buyer</strong>
-                <span class="muted tiny">Unlock seller contacts and buy items.</span>
-              </label>
-              <label class="account-type-option">
-                <input type="radio" name="marketplaceAccountType" value="seller" required />
-                <strong>Seller</strong>
-                <span class="muted tiny">List and manage products as a marketplace seller.</span>
-              </label>
-            </div>
-          </div>
-          <div>
-            <label for="marketRegisterPassword">Password</label>
-            <input
-              id="marketRegisterPassword"
-              name="password"
-              type="password"
-              minlength="8"
-              required
-            />
-          </div>
-          <div>
-            <label for="marketRegisterConfirmPassword">Confirm password</label>
-            <input
-              id="marketRegisterConfirmPassword"
-              name="confirmPassword"
-              type="password"
-              minlength="8"
-              required
-            />
-          </div>
-          <div class="full">
-            <button type="submit">Create account</button>
-          </div>
-        </form>
+        <div class="marketplace-register-cta">
+          <h3>Create account on a dedicated page</h3>
+          <p class="muted tiny">
+            New here? Choose buyer or seller account type from the full signup page.
+          </p>
+          <a class="button-link" href="/auth/register?next=%2Fmarketplace">Create account</a>
+        </div>
       </article>
     <% } %>
-
-    <article class="card marketplace-category-strip-card">
-      <div class="marketplace-category-strip">
-        <% categoryCards.forEach((categoryCard) => { %>
-          <a class="marketplace-strip-item <%= categoryCard.active ? 'active' : '' %>" href="<%= categoryCard.href %>">
-            <img src="<%= categoryCard.imageUrl %>" alt="<%= categoryCard.name %> category" />
-            <span><%= categoryCard.name %></span>
-          </a>
-        <% }) %>
-      </div>
-    </article>
 
     <% if (currentUser && isSellerMarketplaceUser && limitState) { %>
       <article class="card">
@@ -319,7 +285,7 @@
       </article>
     <% } %>
 
-    <section class="marketplace-result-list">
+    <section class="marketplace-result-list marketplace-vinted-grid">
       <% if (!listings.length) { %>
         <article class="card">
           <h3>No items found</h3>
@@ -327,13 +293,17 @@
         </article>
       <% } %>
       <% listings.forEach((listing) => { %>
-        <article class="market-result-card">
-          <a class="market-result-media" href="/marketplace/listings/<%= listing.id %>">
+        <article class="market-vinted-card">
+          <a class="market-vinted-media" href="/marketplace/listings/<%= listing.id %>">
             <img src="<%= listing.primaryImage %>" alt="<%= listing.title %>" />
           </a>
-          <div class="market-result-main">
+          <div class="market-vinted-body">
+            <p class="muted tiny"><%= listing.condition %> • <%= listing.category %></p>
             <h3><a href="/marketplace/listings/<%= listing.id %>"><%= listing.title %></a></h3>
-            <p class="muted tiny"><%= listing.category %> • <%= listing.condition %></p>
+            <p class="market-price">Now <%= formatNaira(listing.price) %></p>
+            <p class="price-anchor tiny">
+              <span class="anchor-original"><%= formatNaira(calculateAnchoredPrice(listing.price, 0.14)) %></span>
+            </p>
             <p class="muted tiny">
               <%= listing.location || "Location not set" %>
               <% if (listing.neighborhood) { %>• <%= listing.neighborhood %><% } %>
@@ -348,10 +318,6 @@
               Contact unlock requires active subscription
               (<%= formatNaira(marketplaceContactSubscriptionFeeNaira) %>/month)
             </p>
-          </div>
-          <div class="market-result-side">
-            <p class="price-anchor tiny"><span class="anchor-original"><%= formatNaira(calculateAnchoredPrice(listing.price, 0.14)) %></span></p>
-            <p class="market-price">Now <%= formatNaira(listing.price) %></p>
             <a class="button-link small full-width" href="/marketplace/listings/<%= listing.id %>">View item</a>
           </div>
         </article>

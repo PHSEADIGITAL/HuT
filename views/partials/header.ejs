@@ -35,7 +35,7 @@
           <% } else { %>
             <% if (currentPath && currentPath.startsWith('/marketplace')) { %>
               <a class="ghost-link" href="/marketplace#marketplace-auth">Sign in</a>
-              <a class="button-link small" href="/marketplace#marketplace-register">Create account</a>
+              <a class="button-link small" href="/auth/register?next=%2Fmarketplace">Create account</a>
             <% } else { %>
               <a class="ghost-link" href="/auth/login">Sign in</a>
               <a class="button-link small" href="/auth/register">Create account</a>
