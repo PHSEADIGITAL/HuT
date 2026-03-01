@@ -55,6 +55,28 @@ Run backend + mobile together:
 npm run dev:all
 ```
 
+## Android Build (Mobile-First)
+
+The Expo mobile app in `mobile/` is configured for Android builds via EAS.
+
+From repo root:
+
+```bash
+npm run mobile:android
+```
+
+Build Android preview APK:
+
+```bash
+EXPO_PUBLIC_API_BASE_URL=https://api.your-domain.com npm run mobile:build:android:preview
+```
+
+Build Android production AAB:
+
+```bash
+EXPO_PUBLIC_API_BASE_URL=https://api.your-domain.com npm run mobile:build:android:production
+```
+
 Cloud defaults note: `docs/cloud-env-defaults.md`
 
 ---
