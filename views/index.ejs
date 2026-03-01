@@ -26,55 +26,68 @@
       payment and live availability.
     </p>
   </div>
-  <form class="booking-search-bar" method="GET" action="/stays">
-    <div class="booking-field wide">
-      <label for="destination">Destination</label>
-      <input
-        id="destination"
-        name="destination"
-        type="text"
-        value="<%= search.destination %>"
-        placeholder="Where are you going?"
-      />
-    </div>
-    <div class="booking-field">
-      <label for="checkInDate">Check-in</label>
-      <input id="checkInDate" type="date" name="checkInDate" value="<%= checkInDate %>" required />
-    </div>
-    <div class="booking-field">
-      <label for="checkOutDate">Check-out</label>
-      <input id="checkOutDate" type="date" name="checkOutDate" value="<%= checkOutDate %>" required />
-    </div>
-    <div class="booking-field">
-      <label for="adults">Adults</label>
-      <input id="adults" name="adults" type="number" min="1" value="<%= search.adults %>" />
-    </div>
-    <div class="booking-field">
-      <label for="rooms">Rooms</label>
-      <input id="rooms" name="rooms" type="number" min="1" value="<%= search.rooms %>" />
-    </div>
-    <div class="booking-field">
-      <label for="sort">Sort</label>
-      <select id="sort" name="sort">
-        <option value="recommended" <%= search.sortBy === "recommended" ? "selected" : "" %>>Recommended</option>
-        <option value="price_asc" <%= search.sortBy === "price_asc" ? "selected" : "" %>>Price (low to high)</option>
-        <option value="price_desc" <%= search.sortBy === "price_desc" ? "selected" : "" %>>Price (high to low)</option>
-        <option value="rating_desc" <%= search.sortBy === "rating_desc" ? "selected" : "" %>>Guest rating</option>
-        <option value="distance" <%= search.sortBy === "distance" ? "selected" : "" %>>Distance to center</option>
-      </select>
-    </div>
-    <div class="booking-field">
-      <label for="minPrice">Min price</label>
-      <input id="minPrice" name="minPrice" type="number" min="0" value="<%= search.minPrice %>" />
-    </div>
-    <div class="booking-field">
-      <label for="maxPrice">Max price</label>
-      <input id="maxPrice" name="maxPrice" type="number" min="0" value="<%= search.maxPrice %>" />
-    </div>
-    <div class="booking-field search-btn-wrap">
-      <button type="submit" class="search-btn">Search</button>
-    </div>
-  </form>
+  <div class="booking-search-toggle-row">
+    <button
+      type="button"
+      class="ghost-btn js-panel-toggle booking-search-toggle"
+      data-target="hotelBookingSearchPanel"
+      aria-controls="hotelBookingSearchPanel"
+      aria-expanded="false"
+    >
+      Open search
+    </button>
+  </div>
+  <section id="hotelBookingSearchPanel" class="booking-search-panel" hidden>
+    <form class="booking-search-bar" method="GET" action="/stays">
+      <div class="booking-field wide">
+        <label for="destination">Destination</label>
+        <input
+          id="destination"
+          name="destination"
+          type="text"
+          value="<%= search.destination %>"
+          placeholder="Where are you going?"
+        />
+      </div>
+      <div class="booking-field">
+        <label for="checkInDate">Check-in</label>
+        <input id="checkInDate" type="date" name="checkInDate" value="<%= checkInDate %>" required />
+      </div>
+      <div class="booking-field">
+        <label for="checkOutDate">Check-out</label>
+        <input id="checkOutDate" type="date" name="checkOutDate" value="<%= checkOutDate %>" required />
+      </div>
+      <div class="booking-field">
+        <label for="adults">Adults</label>
+        <input id="adults" name="adults" type="number" min="1" value="<%= search.adults %>" />
+      </div>
+      <div class="booking-field">
+        <label for="rooms">Rooms</label>
+        <input id="rooms" name="rooms" type="number" min="1" value="<%= search.rooms %>" />
+      </div>
+      <div class="booking-field">
+        <label for="sort">Sort</label>
+        <select id="sort" name="sort">
+          <option value="recommended" <%= search.sortBy === "recommended" ? "selected" : "" %>>Recommended</option>
+          <option value="price_asc" <%= search.sortBy === "price_asc" ? "selected" : "" %>>Price (low to high)</option>
+          <option value="price_desc" <%= search.sortBy === "price_desc" ? "selected" : "" %>>Price (high to low)</option>
+          <option value="rating_desc" <%= search.sortBy === "rating_desc" ? "selected" : "" %>>Guest rating</option>
+          <option value="distance" <%= search.sortBy === "distance" ? "selected" : "" %>>Distance to center</option>
+        </select>
+      </div>
+      <div class="booking-field">
+        <label for="minPrice">Min price</label>
+        <input id="minPrice" name="minPrice" type="number" min="0" value="<%= search.minPrice %>" />
+      </div>
+      <div class="booking-field">
+        <label for="maxPrice">Max price</label>
+        <input id="maxPrice" name="maxPrice" type="number" min="0" value="<%= search.maxPrice %>" />
+      </div>
+      <div class="booking-field search-btn-wrap">
+        <button type="submit" class="search-btn">Search</button>
+      </div>
+    </form>
+  </section>
 </section>
 
 <section class="results-shell">

@@ -1979,10 +1979,13 @@ function createApp() {
       response.redirect("/");
       return;
     }
+    const next = safeNextPath(request.query.next || "/");
 
     response.render("auth-register", {
       title: "Create account",
-      next: safeNextPath(request.query.next || "/")
+      next,
+      marketplaceTheme: next.startsWith("/marketplace"),
+      categories: marketplaceCategories
     });
   });
 
@@ -2046,10 +2049,13 @@ function createApp() {
       response.redirect("/");
       return;
     }
+    const next = safeNextPath(request.query.next || "/");
 
     response.render("auth-login", {
       title: "Sign in",
-      next: safeNextPath(request.query.next || "/")
+      next,
+      marketplaceTheme: next.startsWith("/marketplace"),
+      categories: marketplaceCategories
     });
   });
 

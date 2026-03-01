@@ -31,7 +31,7 @@
     <h3>Leave seller review</h3>
     <% if (!currentUser) { %>
       <p class="muted tiny">
-            <a href="/marketplace#marketplace-auth">Sign in</a>
+            <a href="/auth/login?next=<%= encodeURIComponent(currentPath || `/marketplace/sellers/${seller.id}`) %>">Sign in</a>
             to leave a rating and comment.
       </p>
     <% } else if (currentUser.id === seller.id) { %>

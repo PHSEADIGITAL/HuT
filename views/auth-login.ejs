@@ -1,11 +1,28 @@
-<%- include("partials/header", { title: "Sign in" }) %>
+<%- include("partials/header", {
+  title: marketplaceTheme ? "Marketplace sign in" : "Sign in",
+  forceMarketplaceMode: marketplaceTheme,
+  authNextPath: next
+}) %>
 
-<section class="hero small">
-  <h1>Sign in to Hut</h1>
-  <p>Customers can book/cancel; hotel admins can access hotel dashboards.</p>
+<% if (marketplaceTheme) { %>
+  <%- include("partials/marketplace-masthead", {
+    categories: categories || [],
+    searchQuery: "",
+    searchCategory: "",
+    showQuickCategories: false
+  }) %>
+<% } %>
+
+<section class="hero small <%= marketplaceTheme ? 'marketplace-auth-hero' : '' %>">
+  <h1><%= marketplaceTheme ? "Sign in to HuT Marketplace" : "Sign in to Hut" %></h1>
+  <p>
+    <%= marketplaceTheme
+      ? "Continue to marketplace buying, seller contact unlocks, and listing tools."
+      : "Customers can book/cancel; hotel admins can access hotel dashboards." %>
+  </p>
 </section>
 
-<section class="card auth-card">
+<section class="card auth-card <%= marketplaceTheme ? 'marketplace-auth-card' : '' %>">
   <form class="grid-form" method="POST" action="/auth/login" data-remember-form="login">
     <input type="hidden" name="next" value="<%= next %>" />
 

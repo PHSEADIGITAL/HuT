@@ -401,6 +401,18 @@ th {
   width: min(520px, 100%);
 }
 
+.marketplace-auth-hero {
+  background: #ffffff;
+  border-color: #d9e3e5;
+  box-shadow: none;
+}
+
+.marketplace-auth-card {
+  width: min(640px, 100%);
+  border-color: #d9e3e5;
+  box-shadow: none;
+}
+
 .history-nav {
   display: flex;
   gap: 0.4rem;
@@ -800,6 +812,31 @@ body {
 .booking-hero-content p {
   margin: 0;
   color: #dbe8ff;
+}
+
+.booking-search-toggle-row {
+  margin-top: 0.9rem;
+}
+
+.booking-search-toggle {
+  border-radius: 999px;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.booking-search-toggle:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.booking-search-toggle.is-active {
+  color: #0f2a58;
+  border-color: #f8cf59;
+  background: #f8cf59;
+}
+
+.booking-search-panel {
+  margin-top: 0.75rem;
 }
 
 .booking-search-bar {
@@ -1874,6 +1911,15 @@ body.marketplace-mode .topbar .button-link:hover {
 
   .booking-search-bar {
     grid-template-columns: 1fr;
+  }
+
+  .booking-search-toggle-row {
+    display: flex;
+    justify-content: stretch;
+  }
+
+  .booking-search-toggle {
+    width: 100%;
   }
 
   .booking-field.wide {
