@@ -1,6 +1,8 @@
 const fs = require("fs/promises");
 const { dbFilePath } = require("../config");
 
+const marketplaceBaseListingLimit = 4;
+
 let inMemoryCache = null;
 let writeQueue = Promise.resolve();
 
@@ -43,6 +45,9 @@ function ensureDataShape(data) {
   }
   if (!Array.isArray(data.marketplaceSubscriptions)) {
     data.marketplaceSubscriptions = [];
+  }
+  if (!Array.isArray(data.marketplaceContactSubscriptions)) {
+    data.marketplaceContactSubscriptions = [];
   }
   if (!Array.isArray(data.passwordOtps)) {
     data.passwordOtps = [];
@@ -99,6 +104,61 @@ function ensureDataShape(data) {
     }
     if (!Number.isFinite(user.marketplacePaidUnlockCount)) {
       user.marketplacePaidUnlockCount = 0;
+    }
+  }
+
+  for (const subscription of data.marketplaceSubscriptions) {
+    if (!subscription.subscriptionType) {
+      subscription.subscriptionType = "listing";
+    }
+    if (!subscription.status) {
+      subscription.status = "active";
+    }
+    if (typeof subscription.autoRenew !== "boolean") {
+      subscription.autoRenew = false;
+    }
+    if (!Number.isFinite(subscription.amount)) {
+      subscription.amount = 0;
+    }
+    if (!subscription.monthKey) {
+      const createdAt = new Date(subscription.createdAt || Date.now());
+      subscription.monthKey = `${createdAt.getUTCFullYear()}-${String(
+        createdAt.getUTCMonth() + 1
+      ).padStart(2, "0")}`;
+    }
+    if (subscription.listingLimit === undefined || subscription.listingLimit === null) {
+      const legacyExtra = Number.isFinite(subscription.extraListings) ? subscription.extraListings : 0;
+      if (legacyExtra > 0) {
+        subscription.listingLimit = marketplaceBaseListingLimit + legacyExtra;
+      } else if (subscription.planId === "gold") {
+        subscription.listingLimit = null;
+      } else if (subscription.planId === "premium") {
+        subscription.listingLimit = 40;
+      } else if (subscription.planId === "basic") {
+        subscription.listingLimit = 20;
+      } else {
+        subscription.listingLimit = marketplaceBaseListingLimit;
+      }
+    }
+  }
+
+  for (const subscription of data.marketplaceContactSubscriptions) {
+    if (!subscription.status) {
+      subscription.status = "active";
+    }
+    if (!Number.isFinite(subscription.amount)) {
+      subscription.amount = 0;
+    }
+    if (typeof subscription.autoRenew !== "boolean") {
+      subscription.autoRenew = false;
+    }
+    if (subscription.startedAt === undefined) {
+      subscription.startedAt = subscription.createdAt || new Date().toISOString();
+    }
+    if (subscription.expiresAt === undefined || subscription.expiresAt === null) {
+      const startDate = new Date(subscription.startedAt || Date.now());
+      startDate.setUTCDate(startDate.getUTCDate() + 30);
+      subscription.expiresAt = startDate.toISOString();
     }
   }
 }

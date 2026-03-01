@@ -55,15 +55,43 @@
         <strong><%= listing.sellerPhoneMasked %></strong>
       <% } %>
     </p>
+    <% if (currentUser && contactAccessState) { %>
+      <p class="muted tiny">
+        Contact subscription:
+        <strong>
+          <%= contactAccessState.hasActive
+            ? `Active until ${contactAccessState.expiresAt}`
+            : `Inactive (${formatNaira(marketplaceContactSubscriptionFeeNaira)}/month)` %>
+        </strong>
+      </p>
+    <% } %>
 
-    <% if (canUnlock) { %>
+    <% if (canUnlockWithSubscription) { %>
       <form method="POST" action="/marketplace/listings/<%= listing.id %>/unlock-contact">
-        <button type="submit">Unlock seller contact for <%= formatNaira(contactUnlockFeeNaira) %></button>
+        <button type="submit">Unlock seller contact</button>
       </form>
       <p class="muted tiny">
-        Wallet balance: <%= formatNaira(walletBalance || 0) %> • Points: <%= marketplacePoints || 0 %> •
+        Wallet balance: <%= formatNaira(walletBalance || 0) %> •
         <a href="/wallet">Fund wallet</a>
       </p>
+    <% } %>
+    <% if (needsContactSubscription) { %>
+      <form method="POST" action="/marketplace/contact-subscription/purchase">
+        <input type="hidden" name="returnTo" value="/marketplace/listings/<%= listing.id %>" />
+        <label class="checkbox tiny">
+          <input
+            type="checkbox"
+            name="autoRenew"
+            value="yes"
+            <%= contactAccessState && contactAccessState.autoRenew ? "checked" : "" %>
+          />
+          Enable auto-renew
+        </label>
+        <button type="submit">
+          Activate contact access (<%= formatNaira(marketplaceContactSubscriptionFeeNaira) %>/month)
+        </button>
+      </form>
+      <p class="muted tiny">Wallet balance: <%= formatNaira(walletBalance || 0) %></p>
     <% } %>
 
     <% if (!currentUser) { %>

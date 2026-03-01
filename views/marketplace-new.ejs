@@ -14,11 +14,18 @@
   <aside class="card marketplace-sticky-card">
     <h3>Account snapshot</h3>
     <p class="muted tiny">Listings used this month</p>
-    <p class="metric"><%= limitState.used %> / <%= limitState.includedLimit %></p>
-    <p class="muted tiny">Remaining: <strong><%= limitState.remaining %></strong></p>
+    <p class="metric"><%= limitState.used %> / <%= limitState.includedLimitDisplay %></p>
+    <p class="muted tiny">Current plan: <strong><%= limitState.currentPlan ? limitState.currentPlan.name : "Free Plan" %></strong></p>
+    <p class="muted tiny">Remaining: <strong><%= limitState.remainingDisplay %></strong></p>
     <p class="muted tiny">Wallet balance: <strong><%= formatNaira(walletBalance || 0) %></strong></p>
-    <p class="muted tiny">Marketplace points: <strong><%= marketplacePoints || 0 %></strong></p>
-    <p class="muted tiny">Paid unlocks: <strong><%= marketplacePaidUnlockCount || 0 %></strong></p>
+    <p class="muted tiny">
+      Contact access:
+      <strong>
+        <%= contactAccessState && contactAccessState.hasActive
+          ? `Active until ${contactAccessState.expiresAt}`
+          : `Inactive (${formatNaira(marketplaceContactSubscriptionFeeNaira)}/month)` %>
+      </strong>
+    </p>
 
     <hr />
 
@@ -27,19 +34,50 @@
       <p class="muted tiny">Active: <%= activePlanSubscriptions.map((item) => item.planName).join(", ") %></p>
     <% } %>
     <div class="marketplace-plan-grid">
-      <% marketplacePlans.forEach((plan) => { %>
+      <% marketplacePlans.filter((plan) => plan.id !== "free").forEach((plan) => { %>
         <article class="card">
           <h4><%= plan.name %></h4>
           <p class="market-price"><%= formatNaira(plan.amount) %></p>
           <p class="muted tiny"><%= plan.description %></p>
-          <p class="muted tiny">Adds <%= plan.extraListings %> listings/month</p>
+          <p class="muted tiny">
+            Monthly limit:
+            <strong><%= plan.listingLimit === null ? "Unlimited" : plan.listingLimit %></strong>
+          </p>
           <form method="POST" action="/marketplace/plans/purchase">
             <input type="hidden" name="planId" value="<%= plan.id %>" />
+            <input type="hidden" name="returnTo" value="/marketplace/new" />
+            <label class="checkbox tiny">
+              <input type="checkbox" name="autoRenew" value="yes" checked />
+              Auto-renew
+            </label>
             <button type="submit" class="ghost-btn">Buy with wallet</button>
           </form>
         </article>
       <% }) %>
     </div>
+
+    <hr />
+    <h3>Contact access subscription</h3>
+    <p class="muted tiny">
+      Unlock any seller contact with one monthly subscription.
+    </p>
+    <form method="POST" action="/marketplace/contact-subscription/purchase">
+      <input type="hidden" name="returnTo" value="/marketplace/new" />
+      <label class="checkbox tiny">
+        <input
+          type="checkbox"
+          name="autoRenew"
+          value="yes"
+          <%= contactAccessState && contactAccessState.autoRenew ? "checked" : "" %>
+        />
+        Enable auto-renew
+      </label>
+      <button type="submit" class="ghost-btn full-width">
+        <%= contactAccessState && contactAccessState.hasActive
+          ? "Update auto-renew"
+          : `Activate (${formatNaira(marketplaceContactSubscriptionFeeNaira)}/month)` %>
+      </button>
+    </form>
   </aside>
 
   <section class="card">
