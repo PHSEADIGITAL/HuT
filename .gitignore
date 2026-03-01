@@ -3,3 +3,5 @@ node_modules/
 npm-debug.log*
 public/uploads/marketplace/*
 !public/uploads/marketplace/.gitkeep
+mobile/.expo/
+mobile/dist/

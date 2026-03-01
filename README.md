@@ -17,10 +17,12 @@ Hut! is a hotel booking web app for Bonny Island with:
 - platform owner revenue dashboard aggregating all hotel/platform transactions
 - Bonny Island second-hand marketplace with image uploads
 - marketplace categories (Electronics, Furniture, Fashion, etc.)
-- paid marketplace listing plans (Basic/Premium) to increase monthly listing quota
-- seller contact unlock flow (NGN 200 fee paid to platform account)
+- buyer/seller marketplace account types
+- seller listing plans: Free (4), Basic (20), Premium (40), Gold (unlimited)
+- buyer contact subscription flow (NGN 500/month) for seller contact unlock
 - virtual wallet for users (top-up and spend on unlock fees)
 - OTP-based forgot password (email or phone)
+- React Native mobile app (Expo) connected to Node.js API (`mobile/`)
 
 ---
 
@@ -66,7 +68,8 @@ Open: `http://localhost:3000`
 ## Key Routes
 
 ### Customer
-- `GET /` - Browse hotels and availability
+- `GET /` - Landing page (choose Stays or Marketplace)
+- `GET /stays` - Browse hotels and availability
 - `GET /hotels/:hotelId` - Hotel details + booking form
 - `POST /bookings` - Book and pay (requires customer login)
 - `GET /bookings/:bookingId/pay` - Continue payment if redirect-based provider
@@ -79,8 +82,9 @@ Open: `http://localhost:3000`
 - `GET /marketplace/new` - Create listing (auth required)
 - `GET /marketplace/my-listings` - Manage seller listings
 - `GET /marketplace/listings/:listingId` - Listing detail
-- `POST /marketplace/listings/:listingId/unlock-contact` - Unlock seller contact for NGN 200
-- `POST /marketplace/plans/purchase` - Buy listing plan to increase monthly quota
+- `POST /marketplace/listings/:listingId/unlock-contact` - Buyer unlock using active subscription
+- `POST /marketplace/contact-subscription/purchase` - Activate buyer contact access (NGN 500/month)
+- `POST /marketplace/plans/purchase` - Seller listing plan purchase
 - `GET /auth/forgot-password` - Request OTP reset
 - `POST /auth/forgot-password` - Send OTP via email/SMS
 - `GET /auth/reset-password` - OTP password reset form
@@ -98,6 +102,13 @@ Open: `http://localhost:3000`
 
 ### API
 - `GET /health` - Health check
+- `POST /api/auth/register` - Mobile registration + token
+- `POST /api/auth/login` - Mobile login + token
+- `GET /api/auth/me` - Mobile profile
+- `GET /api/stays` - Hotel listing API
+- `GET /api/stays/:hotelId` - Hotel detail API
+- `GET /api/marketplace/listings` - Marketplace listing API
+- `GET /api/marketplace/listings/:listingId` - Marketplace detail API
 - `GET /api/hotels/:hotelId/availability` - Availability snapshot
 - `GET /api/hotels/:hotelId/availability/stream` - SSE real-time updates
 - `GET /payments/callback/paystack` - Payment callback
@@ -125,13 +136,16 @@ Provider-specific credentials are documented in `.env.example`.
 
 ## Marketplace Rules
 
-- Each user can create up to **4 listings per month**.
-- Users can increase limit by buying listing plans:
-  - **Basic Plan**: +6 listings/month
-  - **Premium Plan**: +21 listings/month
+- User selects marketplace account type at signup:
+  - **Buyer**: unlock contacts via subscription
+  - **Seller**: create/manage listings and seller plans
+- Seller plans:
+  - **Free**: 4 listings/month
+  - **Basic**: 20 listings/month
+  - **Premium**: 40 listings/month
+  - **Gold**: unlimited listings
 - Seller phone numbers are masked by default.
-- Buyers pay **NGN 200** to unlock a seller contact.
-- Unlock fee is recorded as platform revenue.
+- Buyers subscribe at **NGN 500/month** to unlock any seller contact.
 - Wallet top-ups are credited to user virtual wallets and tracked in the ledger.
 - Wallet top-up is disabled for hotel admin accounts.
 

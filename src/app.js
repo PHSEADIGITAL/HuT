@@ -1397,6 +1397,109 @@ function requireMarketplaceAccountType(allowedTypes, deniedMessage) {
   };
 }
 
+const mobileApiTokenLifetimeDays = 30;
+
+function readApiBearerToken(request) {
+  const headerValue = String(request.get("authorization") || "").trim();
+  if (!headerValue || !headerValue.toLowerCase().startsWith("bearer ")) {
+    return "";
+  }
+  return headerValue.slice(7).trim();
+}
+
+function findActiveMobileAuthToken(data, tokenValue, now = new Date()) {
+  const normalizedToken = String(tokenValue || "").trim();
+  if (!normalizedToken) {
+    return null;
+  }
+  return (data.mobileAuthTokens || []).find((token) => {
+    if (token.token !== normalizedToken) {
+      return false;
+    }
+    if (token.revokedAt) {
+      return false;
+    }
+    return new Date(token.expiresAt || 0) > now;
+  }) || null;
+}
+
+function createMobileApiTokenRecord(data, userId, dateValue = new Date()) {
+  const now = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  const nowIso = now.toISOString();
+  const tokenValue = `${randomUUID().replace(/-/g, "")}${randomUUID().replace(/-/g, "")}`;
+  const tokenRecord = {
+    id: randomUUID(),
+    userId,
+    token: tokenValue,
+    createdAt: nowIso,
+    expiresAt: addDaysIso(now, mobileApiTokenLifetimeDays),
+    lastUsedAt: nowIso,
+    revokedAt: null
+  };
+  if (!Array.isArray(data.mobileAuthTokens)) {
+    data.mobileAuthTokens = [];
+  }
+  data.mobileAuthTokens.push(tokenRecord);
+  return tokenRecord;
+}
+
+function apiError(response, statusCode, message, extra = {}) {
+  response.status(statusCode).json({
+    ok: false,
+    error: message,
+    ...extra
+  });
+}
+
+function requireApiAuth(request, response, next) {
+  if (!request.currentUser) {
+    apiError(response, 401, "Authentication required.");
+    return;
+  }
+  next();
+}
+
+function requireApiMarketplaceAccountType(allowedTypes, deniedMessage) {
+  return (request, response, next) => {
+    if (!request.currentUser) {
+      apiError(response, 401, "Authentication required.");
+      return;
+    }
+    if (request.currentUser.role !== "customer") {
+      apiError(response, 403, "Only customer accounts can use marketplace trading features.");
+      return;
+    }
+    const accountType = currentMarketplaceAccountType(request.currentUser);
+    if (!allowedTypes.includes(accountType)) {
+      apiError(
+        response,
+        403,
+        deniedMessage ||
+          `This action requires a ${allowedTypes.join(" or ")} marketplace account.`
+      );
+      return;
+    }
+    next();
+  };
+}
+
+function serializeUserForApi(user) {
+  if (!user) {
+    return null;
+  }
+  const safeUser = sanitizeUser(user);
+  return {
+    id: safeUser.id,
+    role: safeUser.role,
+    name: safeUser.name,
+    email: safeUser.email,
+    phone: safeUser.phone,
+    walletBalance: Number.isFinite(safeUser.walletBalance) ? safeUser.walletBalance : 0,
+    marketplaceAccountType: currentMarketplaceAccountType(safeUser),
+    hotelIds: Array.isArray(safeUser.hotelIds) ? safeUser.hotelIds : []
+  };
+}
+
 function requireHotelAccess(request, response, next) {
   const hotelId = request.params.hotelId;
   if (canAccessHotel(request.currentUser, hotelId)) {
@@ -1505,7 +1608,18 @@ function createApp() {
     try {
       const snapshot = await getSnapshot();
       const userId = request.session.userId;
-      const user = userId ? sanitizeUser(findUserById(snapshot, userId)) : null;
+      let user = userId ? sanitizeUser(findUserById(snapshot, userId)) : null;
+      const apiBearerToken = readApiBearerToken(request);
+      request.currentApiToken = "";
+      if (apiBearerToken) {
+        const tokenRecord = findActiveMobileAuthToken(snapshot, apiBearerToken);
+        if (tokenRecord) {
+          request.currentApiToken = apiBearerToken;
+          if (!user) {
+            user = sanitizeUser(findUserById(snapshot, tokenRecord.userId));
+          }
+        }
+      }
 
       request.currentUser = user;
       response.locals.currentUser = user;
@@ -1526,6 +1640,140 @@ function createApp() {
       env: nodeEnv,
       ts: new Date().toISOString()
     });
+  });
+
+  app.get("/api/meta", (request, response) => {
+    response.json({
+      ok: true,
+      appName,
+      platform: response.locals.platform || {},
+      apiVersion: "v1"
+    });
+  });
+
+  app.post("/api/auth/register", async (request, response) => {
+    const name = String(request.body.name || "").trim();
+    const email = String(request.body.email || "").trim().toLowerCase();
+    const phone = String(request.body.phone || "").trim();
+    const password = String(request.body.password || "");
+    const confirmPassword = String(request.body.confirmPassword || password);
+    const marketplaceAccountType = normalizeMarketplaceAccountType(
+      request.body.marketplaceAccountType,
+      "buyer"
+    );
+
+    if (!name || !email || !phone || !password) {
+      apiError(response, 400, "All fields are required.");
+      return;
+    }
+    if (password.length < authConfig.minimumPasswordLength) {
+      apiError(
+        response,
+        400,
+        `Password must be at least ${authConfig.minimumPasswordLength} characters.`
+      );
+      return;
+    }
+    if (password !== confirmPassword) {
+      apiError(response, 400, "Password confirmation does not match.");
+      return;
+    }
+
+    const result = await withWriteLock(async (data) => {
+      const registerResult = registerCustomer(data, {
+        name,
+        email,
+        phone,
+        password,
+        marketplaceAccountType
+      });
+      if (registerResult.error) {
+        return registerResult;
+      }
+      const tokenRecord = createMobileApiTokenRecord(data, registerResult.user.id);
+      return {
+        ok: true,
+        user: registerResult.user,
+        token: tokenRecord.token,
+        expiresAt: tokenRecord.expiresAt
+      };
+    });
+
+    if (result.error) {
+      apiError(response, 400, result.error);
+      return;
+    }
+
+    response.status(201).json({
+      ok: true,
+      user: serializeUserForApi(result.user),
+      token: result.token,
+      expiresAt: result.expiresAt
+    });
+  });
+
+  app.post("/api/auth/login", async (request, response) => {
+    const email = String(request.body.email || "").trim().toLowerCase();
+    const password = String(request.body.password || "");
+    if (!email || !password) {
+      apiError(response, 400, "Email and password are required.");
+      return;
+    }
+
+    const result = await withWriteLock(async (data) => {
+      const user = authenticateUser(data, email, password);
+      if (!user) {
+        return { error: "Invalid email or password." };
+      }
+      const tokenRecord = createMobileApiTokenRecord(data, user.id);
+      return {
+        ok: true,
+        user,
+        token: tokenRecord.token,
+        expiresAt: tokenRecord.expiresAt
+      };
+    });
+
+    if (result.error) {
+      apiError(response, 401, result.error);
+      return;
+    }
+
+    response.json({
+      ok: true,
+      user: serializeUserForApi(result.user),
+      token: result.token,
+      expiresAt: result.expiresAt
+    });
+  });
+
+  app.get("/api/auth/me", requireApiAuth, async (request, response) => {
+    const snapshot = await getSnapshot();
+    const user = snapshot.users.find((item) => item.id === request.currentUser.id);
+    if (!user) {
+      apiError(response, 404, "User account not found.");
+      return;
+    }
+
+    response.json({
+      ok: true,
+      user: serializeUserForApi(user)
+    });
+  });
+
+  app.post("/api/auth/logout", requireApiAuth, async (request, response) => {
+    const bearerToken = request.currentApiToken || readApiBearerToken(request);
+    if (!bearerToken) {
+      response.json({ ok: true });
+      return;
+    }
+    await withWriteLock(async (data) => {
+      const tokenRecord = findActiveMobileAuthToken(data, bearerToken);
+      if (tokenRecord) {
+        tokenRecord.revokedAt = new Date().toISOString();
+      }
+    });
+    response.json({ ok: true });
   });
 
   app.get("/auth/register", (request, response) => {
@@ -4630,6 +4878,800 @@ function createApp() {
         checkInDate,
         checkOutDate,
         platform: snapshot.platform
+      });
+    }
+  );
+
+  app.get("/api/stays", async (request, response) => {
+    const checkInDate = request.query.checkInDate || isoDateOffset(1);
+    const checkOutDate = request.query.checkOutDate || isoDateOffset(2);
+    const destination = String(request.query.destination || "Bonny Island").trim();
+    const adults = Math.max(1, toNumber(request.query.adults, 2));
+    const roomsRequested = Math.max(1, toNumber(request.query.rooms, 1));
+    const minPriceFilter = Math.max(0, toNumber(request.query.minPrice, 0));
+    const rawMaxPrice = toNumber(request.query.maxPrice, 0);
+    const maxPriceFilter = rawMaxPrice > 0 ? rawMaxPrice : null;
+    const sortByInput = String(request.query.sort || "recommended").trim();
+    const sortBy = ["recommended", "price_asc", "price_desc", "rating_desc", "distance"]
+      .includes(sortByInput)
+      ? sortByInput
+      : "recommended";
+
+    const snapshot = await getSnapshot();
+    let hotels = sortHotelsForMarketplace(snapshot.hotels).map((hotel) => {
+      const reviewStats = getHotelRatingStats(snapshot, hotel.id);
+      const hotelWithReviews =
+        reviewStats.count > 0
+          ? {
+              ...hotel,
+              reviewScore: reviewStats.averageTenScale,
+              reviewCount: reviewStats.count
+            }
+          : hotel;
+      const hotelWithMedia = withHotelListingMeta(withHotelMedia(hotelWithReviews));
+      const rooms = snapshot.rooms.filter((room) => room.hotelId === hotel.id);
+      const minPrice = rooms.reduce(
+        (current, room) => Math.min(current, room.pricePerNight),
+        Number.POSITIVE_INFINITY
+      );
+      const availability = hotelAvailability(snapshot, hotel.id, checkInDate, checkOutDate);
+      const roomsAvailable = availability.reduce((sum, room) => sum + room.availableUnits, 0);
+      return {
+        ...hotelWithMedia,
+        minPrice: Number.isFinite(minPrice) ? minPrice : 0,
+        roomsAvailable
+      };
+    });
+
+    const destinationQuery = destination.toLowerCase();
+    hotels = hotels.filter((hotel) => {
+      const searchable = [
+        hotel.name,
+        hotel.location,
+        hotel.description,
+        hotel.propertyType,
+        ...(hotel.amenities || [])
+      ]
+        .join(" ")
+        .toLowerCase();
+      if (destinationQuery && !searchable.includes(destinationQuery)) {
+        return false;
+      }
+      if (hotel.minPrice < minPriceFilter) {
+        return false;
+      }
+      if (maxPriceFilter && hotel.minPrice > maxPriceFilter) {
+        return false;
+      }
+      return true;
+    });
+
+    if (sortBy === "price_asc") {
+      hotels.sort((a, b) => a.minPrice - b.minPrice);
+    } else if (sortBy === "price_desc") {
+      hotels.sort((a, b) => b.minPrice - a.minPrice);
+    } else if (sortBy === "rating_desc") {
+      hotels.sort((a, b) => b.reviewScore - a.reviewScore);
+    } else if (sortBy === "distance") {
+      hotels.sort((a, b) => a.distanceToCenterKm - b.distanceToCenterKm);
+    } else {
+      hotels.sort((a, b) => {
+        const premiumBoost = Number(b.premiumListingActive) - Number(a.premiumListingActive);
+        if (premiumBoost !== 0) {
+          return premiumBoost;
+        }
+        return b.reviewScore - a.reviewScore;
+      });
+    }
+
+    response.json({
+      ok: true,
+      search: {
+        checkInDate,
+        checkOutDate,
+        destination,
+        adults,
+        rooms: roomsRequested,
+        minPrice: minPriceFilter || 0,
+        maxPrice: maxPriceFilter,
+        sortBy
+      },
+      resultStats: {
+        count: hotels.length,
+        total: snapshot.hotels.length
+      },
+      hotels: hotels.map((hotel) => ({
+        id: hotel.id,
+        name: hotel.name,
+        location: hotel.location,
+        description: hotel.description,
+        coverImage: hotel.coverImage,
+        galleryImages: hotel.galleryImages || [],
+        minPrice: hotel.minPrice,
+        roomsAvailable: hotel.roomsAvailable,
+        reviewScore: hotel.reviewScore,
+        reviewCount: hotel.reviewCount,
+        reviewLabel: hotel.reviewLabel,
+        distanceToCenterKm: hotel.distanceToCenterKm,
+        propertyType: hotel.propertyType,
+        amenities: hotel.amenities || [],
+        starRating: hotel.starRating,
+        premiumListingActive: Boolean(hotel.premiumListingActive)
+      }))
+    });
+  });
+
+  app.get("/api/stays/:hotelId", async (request, response) => {
+    const checkInDate = request.query.checkInDate || isoDateOffset(1);
+    const checkOutDate = request.query.checkOutDate || isoDateOffset(2);
+    const snapshot = await getSnapshot();
+    const hotel = snapshot.hotels.find((item) => item.id === request.params.hotelId);
+    if (!hotel) {
+      apiError(response, 404, "Hotel not found.");
+      return;
+    }
+
+    const hotelReviewStats = getHotelRatingStats(snapshot, hotel.id);
+    const hotelWithReviews =
+      hotelReviewStats.count > 0
+        ? {
+            ...hotel,
+            reviewScore: hotelReviewStats.averageTenScale,
+            reviewCount: hotelReviewStats.count
+          }
+        : hotel;
+    const hotelWithMedia = withHotelListingMeta(withHotelMedia(hotelWithReviews));
+    const rooms = snapshot.rooms
+      .filter((room) => room.hotelId === hotel.id)
+      .map((room) => withRoomDisplayMeta(withRoomMedia(room)));
+    const minPrice = rooms.reduce(
+      (current, room) => Math.min(current, room.pricePerNight),
+      Number.POSITIVE_INFINITY
+    );
+    const availabilityByRoom = hotelAvailability(
+      snapshot,
+      hotel.id,
+      checkInDate,
+      checkOutDate
+    );
+    const roomCards = rooms.map((room) => ({
+      ...room,
+      availability: availabilityByRoom.find((item) => item.roomId === room.id)
+    }));
+
+    response.json({
+      ok: true,
+      checkInDate,
+      checkOutDate,
+      hotel: {
+        id: hotel.id,
+        name: hotel.name,
+        location: hotel.location,
+        address: hotel.address || "",
+        description: hotel.description,
+        about: hotel.about || hotel.description,
+        coverImage: hotelWithMedia.coverImage,
+        galleryImages: hotelWithMedia.galleryImages || [],
+        minPrice: Number.isFinite(minPrice) ? minPrice : 0,
+        amenities: hotelWithMedia.amenities || [],
+        starRating: hotelWithMedia.starRating,
+        reviewScore: hotelWithMedia.reviewScore,
+        reviewCount: hotelWithMedia.reviewCount,
+        reviewLabel: hotelWithMedia.reviewLabel,
+        propertyType: hotelWithMedia.propertyType,
+        distanceToCenterKm: hotelWithMedia.distanceToCenterKm
+      },
+      rooms: roomCards.map((room) => ({
+        id: room.id,
+        category: room.category,
+        pricePerNight: room.pricePerNight,
+        totalUnits: room.totalUnits,
+        image: room.image,
+        highlights: room.highlights || [],
+        bedType: room.bedType,
+        sleeps: room.sleeps,
+        roomSizeSqm: room.roomSizeSqm,
+        availability: room.availability || null
+      })),
+      rating: hotelReviewStats
+    });
+  });
+
+  app.get("/api/marketplace/listings", async (request, response) => {
+    if (request.currentUser) {
+      await refreshMarketplaceAutoRenewalsForUser(request.currentUser.id);
+    }
+    const snapshot = await getSnapshot();
+    const query = sanitizeMarketplaceText(request.query.q, "");
+    const rawCategory = sanitizeMarketplaceText(request.query.category, "");
+    const rawCondition = sanitizeMarketplaceText(request.query.condition, "");
+    const rawLocation = sanitizeMarketplaceText(request.query.location, "");
+    const rawNeighborhood = sanitizeMarketplaceText(request.query.neighborhood, "");
+    const category = marketplaceCategories.includes(rawCategory) ? rawCategory : "";
+    const condition = marketplaceConditions.includes(rawCondition) ? rawCondition : "";
+    const location = normalizeMarketplaceLocation(rawLocation);
+    const neighborhood = normalizeMarketplaceNeighborhood(rawNeighborhood, location);
+    const minPrice = Math.max(0, toNumber(request.query.minPrice, 0));
+    const maxPriceRaw = toNumber(request.query.maxPrice, 0);
+    const maxPrice = maxPriceRaw > 0 ? maxPriceRaw : null;
+    const sortInput = sanitizeMarketplaceText(request.query.sort, "newest");
+    const sort = ["newest", "price_asc", "price_desc"].includes(sortInput)
+      ? sortInput
+      : "newest";
+
+    let listings = snapshot.marketplaceListings
+      .filter((item) => item.status === "active")
+      .map((item) => enrichMarketplaceListing(snapshot, item));
+    const searchableQuery = query.toLowerCase();
+    if (searchableQuery) {
+      listings = listings.filter((listing) =>
+        `${listing.title} ${listing.description} ${listing.category} ${listing.location} ${listing.neighborhood}`
+          .toLowerCase()
+          .includes(searchableQuery)
+      );
+    }
+    if (category) {
+      listings = listings.filter((listing) => listing.category === category);
+    }
+    if (condition) {
+      listings = listings.filter((listing) => listing.condition === condition);
+    }
+    if (location) {
+      listings = listings.filter((listing) => listing.location === location);
+    }
+    if (neighborhood) {
+      listings = listings.filter((listing) => listing.neighborhood === neighborhood);
+    }
+    if (minPrice > 0) {
+      listings = listings.filter((listing) => listing.price >= minPrice);
+    }
+    if (maxPrice) {
+      listings = listings.filter((listing) => listing.price <= maxPrice);
+    }
+    if (sort === "price_asc") {
+      listings.sort((a, b) => a.price - b.price);
+    } else if (sort === "price_desc") {
+      listings.sort((a, b) => b.price - a.price);
+    } else {
+      listings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }
+
+    let account = null;
+    if (request.currentUser) {
+      const currentUser = snapshot.users.find((item) => item.id === request.currentUser.id);
+      if (currentUser) {
+        ensureUserWallet(currentUser);
+        const marketplaceAccountType = currentMarketplaceAccountType(currentUser);
+        const isSeller = isMarketplaceSellerUser(currentUser);
+        const isBuyer = isMarketplaceBuyerUser(currentUser);
+        account = {
+          user: serializeUserForApi(currentUser),
+          marketplaceAccountType,
+          isSeller,
+          isBuyer,
+          walletBalance: currentUser.walletBalance,
+          sellerLimitState: isSeller ? canCreateMarketplaceListing(snapshot, currentUser.id) : null,
+          buyerContactSubscription: isBuyer
+            ? getMarketplaceContactAccessState(snapshot, currentUser.id)
+            : null
+        };
+      }
+    }
+
+    response.json({
+      ok: true,
+      filters: {
+        q: query,
+        category,
+        condition,
+        location,
+        neighborhood,
+        minPrice,
+        maxPrice,
+        sort
+      },
+      listings: listings.map((listing) => ({
+        id: listing.id,
+        title: listing.title,
+        description: listing.description,
+        category: listing.category,
+        condition: listing.condition,
+        location: listing.location,
+        neighborhood: listing.neighborhood,
+        price: listing.price,
+        imageUrls: listing.imageUrls || [],
+        primaryImage: listing.primaryImage,
+        sellerUserId: listing.sellerUserId,
+        sellerName: listing.sellerName,
+        sellerPhoneMasked: listing.sellerPhoneMasked,
+        sellerRatingAverage: listing.sellerRatingAverage,
+        sellerRatingCount: listing.sellerRatingCount,
+        createdAt: listing.createdAt
+      })),
+      account,
+      plans: marketplacePlans,
+      marketplaceContactSubscriptionFeeNaira
+    });
+  });
+
+  app.get("/api/marketplace/listings/:listingId", async (request, response) => {
+    if (request.currentUser) {
+      await refreshMarketplaceAutoRenewalsForUser(request.currentUser.id);
+    }
+    const snapshot = await getSnapshot();
+    const listing = snapshot.marketplaceListings.find((item) => item.id === request.params.listingId);
+    if (!listing) {
+      apiError(response, 404, "Marketplace listing not found.");
+      return;
+    }
+    const enrichedListing = enrichMarketplaceListing(snapshot, listing);
+    const seller = snapshot.users.find((item) => item.id === listing.sellerUserId);
+    const sellerRating = getMarketplaceSellerRatingStats(snapshot, listing.sellerUserId);
+    const isSeller = request.currentUser && request.currentUser.id === listing.sellerUserId;
+    const isPlatformAdmin =
+      request.currentUser && request.currentUser.role === "platform_admin";
+    const buyerMarketplaceAccount =
+      request.currentUser && isMarketplaceBuyerUser(request.currentUser);
+    const hasUnlocked =
+      request.currentUser &&
+      hasUnlockedSellerContact(snapshot, listing.id, request.currentUser.id);
+    const canViewContact = Boolean(isSeller || isPlatformAdmin || hasUnlocked);
+    const canUnlock = Boolean(
+      request.currentUser &&
+      buyerMarketplaceAccount &&
+      !isSeller &&
+      !isPlatformAdmin &&
+      !hasUnlocked &&
+      listing.status === "active"
+    );
+
+    let buyerContactSubscription = null;
+    if (request.currentUser && buyerMarketplaceAccount) {
+      buyerContactSubscription = getMarketplaceContactAccessState(
+        snapshot,
+        request.currentUser.id
+      );
+    }
+    const canUnlockWithSubscription = Boolean(
+      canUnlock && buyerContactSubscription && buyerContactSubscription.hasActive
+    );
+
+    response.json({
+      ok: true,
+      listing: {
+        id: enrichedListing.id,
+        title: enrichedListing.title,
+        description: enrichedListing.description,
+        category: enrichedListing.category,
+        condition: enrichedListing.condition,
+        location: enrichedListing.location,
+        neighborhood: enrichedListing.neighborhood,
+        price: enrichedListing.price,
+        imageUrls: enrichedListing.imageUrls || [],
+        primaryImage: enrichedListing.primaryImage,
+        sellerUserId: enrichedListing.sellerUserId,
+        sellerName: enrichedListing.sellerName,
+        sellerPhoneMasked: enrichedListing.sellerPhoneMasked,
+        sellerPhone: canViewContact && seller ? seller.phone : null,
+        sellerRating,
+        createdAt: enrichedListing.createdAt
+      },
+      permissions: {
+        canViewContact,
+        canUnlock,
+        canUnlockWithSubscription
+      },
+      buyerContactSubscription,
+      marketplaceContactSubscriptionFeeNaira
+    });
+  });
+
+  app.get(
+    "/api/marketplace/my-listings",
+    requireApiAuth,
+    requireApiMarketplaceAccountType(["seller"], "Only seller accounts can manage listings."),
+    async (request, response) => {
+      await refreshMarketplaceAutoRenewalsForUser(request.currentUser.id);
+      const snapshot = await getSnapshot();
+      const listings = snapshot.marketplaceListings
+        .filter((item) => item.sellerUserId === request.currentUser.id)
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .map((item) => enrichMarketplaceListing(snapshot, item));
+      const limitState = canCreateMarketplaceListing(snapshot, request.currentUser.id);
+      response.json({
+        ok: true,
+        limitState,
+        plans: marketplacePlans,
+        listings
+      });
+    }
+  );
+
+  app.post(
+    "/api/marketplace/listings",
+    requireApiAuth,
+    requireApiMarketplaceAccountType(["seller"], "Only seller accounts can publish listings."),
+    async (request, response) => {
+      const title = sanitizeMarketplaceText(request.body.title);
+      const description = sanitizeMarketplaceText(request.body.description);
+      const category = normalizeMarketplaceCategory(request.body.category);
+      const condition = normalizeMarketplaceCondition(request.body.condition);
+      const location = normalizeMarketplaceLocation(request.body.location);
+      const neighborhood = normalizeMarketplaceNeighborhood(request.body.neighborhood, location);
+      const price = Math.max(0, Math.round(toNumber(request.body.price, 0)));
+      const imageUrls = normalizeImageArray(request.body.imageUrls).slice(0, 6);
+
+      if (!title || !description || price <= 0 || !location || !neighborhood) {
+        apiError(
+          response,
+          400,
+          "Title, description, valid price, location, and neighborhood are required."
+        );
+        return;
+      }
+
+      const result = await withWriteLock(async (data) => {
+        const seller = data.users.find((user) => user.id === request.currentUser.id);
+        if (!seller) {
+          return { error: "Seller account not found." };
+        }
+
+        maybeAutoRenewMarketplaceListingPlan(data, seller.id);
+        const limitState = canCreateMarketplaceListing(data, seller.id);
+        if (!limitState.allowed) {
+          return {
+            error: `Monthly listing limit reached. You can only create ${limitState.includedLimitDisplay} listings this month on your current plan.`
+          };
+        }
+
+        const listing = {
+          id: randomUUID(),
+          sellerUserId: seller.id,
+          title,
+          description,
+          category,
+          condition,
+          location,
+          neighborhood,
+          price,
+          imageUrls: imageUrls.length ? imageUrls : [marketplaceFallbackImage],
+          status: "active",
+          monthKey: limitState.monthKey,
+          createdAt: new Date().toISOString()
+        };
+        data.marketplaceListings.push(listing);
+        return { listing };
+      });
+
+      if (result.error) {
+        apiError(response, 400, result.error);
+        return;
+      }
+
+      response.status(201).json({
+        ok: true,
+        listing: result.listing
+      });
+    }
+  );
+
+  app.post(
+    "/api/marketplace/listings/:listingId/mark-sold",
+    requireApiAuth,
+    requireApiMarketplaceAccountType(
+      ["seller"],
+      "Only seller accounts can update listing status."
+    ),
+    async (request, response) => {
+      const listingId = request.params.listingId;
+      const result = await withWriteLock(async (data) => {
+        const listing = data.marketplaceListings.find((item) => item.id === listingId);
+        if (!listing) {
+          return { error: "Listing not found." };
+        }
+        if (listing.sellerUserId !== request.currentUser.id) {
+          return { error: "Only the seller can update listing status." };
+        }
+        listing.status = "sold";
+        listing.soldAt = new Date().toISOString();
+        return { ok: true };
+      });
+
+      if (result.error) {
+        apiError(response, 400, result.error);
+        return;
+      }
+      response.json({ ok: true });
+    }
+  );
+
+  app.post(
+    "/api/marketplace/plans/purchase",
+    requireApiAuth,
+    requireApiMarketplaceAccountType(
+      ["seller"],
+      "Only seller accounts can subscribe to listing plans."
+    ),
+    async (request, response) => {
+      const planId = sanitizeMarketplaceText(request.body.planId, "").toLowerCase();
+      const autoRenew = Boolean(request.body.autoRenew);
+      const plan = getMarketplacePlanById(planId);
+      if (!plan || plan.id === "free") {
+        apiError(response, 400, "Selected listing plan does not exist.");
+        return;
+      }
+
+      const result = await withWriteLock(async (data) => {
+        const user = data.users.find((item) => item.id === request.currentUser.id);
+        if (!user) {
+          return { error: "User account not found." };
+        }
+        ensureUserWallet(user);
+        const monthKey = toMonthKey(new Date());
+        const nowIso = new Date().toISOString();
+        const currentMonthSubscriptions = getActiveListingSubscriptionsForMonth(
+          data,
+          user.id,
+          monthKey
+        );
+        const primaryCurrentSubscription = pickPrimaryListingSubscription(currentMonthSubscriptions);
+        if (primaryCurrentSubscription && primaryCurrentSubscription.planId === plan.id) {
+          primaryCurrentSubscription.autoRenew = autoRenew;
+          primaryCurrentSubscription.updatedAt = nowIso;
+          return {
+            ok: true,
+            updatedOnly: true,
+            nextLimitState: canCreateMarketplaceListing(data, user.id)
+          };
+        }
+        if (plan.amount > 0 && user.walletBalance < plan.amount) {
+          return {
+            error: `Insufficient wallet balance. You need ${formatNaira(plan.amount)} to purchase this plan.`
+          };
+        }
+
+        let paymentId = null;
+        if (plan.amount > 0) {
+          paymentId = randomUUID();
+          const walletResult = createWalletEntry(data, {
+            userId: user.id,
+            type: "marketplace_listing_subscription_purchase",
+            direction: "debit",
+            amount: plan.amount,
+            description: `${plan.name} purchase for monthly listing access`,
+            reference: `PLAN-${plan.id.toUpperCase()}-${Date.now()}`,
+            relatedPaymentId: paymentId
+          });
+          if (walletResult.error) {
+            return { error: walletResult.error };
+          }
+        }
+
+        for (const subscription of currentMonthSubscriptions) {
+          subscription.status = "replaced";
+          subscription.updatedAt = nowIso;
+        }
+        data.marketplaceSubscriptions.push({
+          id: randomUUID(),
+          userId: user.id,
+          subscriptionType: "listing",
+          planId: plan.id,
+          amount: plan.amount,
+          listingLimit: plan.listingLimit,
+          monthKey,
+          status: "active",
+          autoRenew,
+          createdAt: nowIso,
+          updatedAt: nowIso
+        });
+
+        if (plan.amount > 0 && paymentId) {
+          data.payments.push(
+            createPaymentRecord({
+              id: paymentId,
+              bookingId: null,
+              hotelId: null,
+              userId: user.id,
+              listingId: null,
+              transactionRef: `HUT-MPLN-${Date.now()}`,
+              transactionType: "marketplace_listing_subscription",
+              paymentProvider: "wallet",
+              paymentExternalId: `WALLET-${user.id}`,
+              grossAmount: plan.amount,
+              hotelPayout: 0,
+              platformEarning: plan.amount,
+              commissionRate: 0,
+              hotelBankAccount: null,
+              platformBankAccount: data.platform.bankAccount,
+              paymentStatus: "paid",
+              settled: true,
+              settledAt: nowIso,
+              createdAt: nowIso
+            })
+          );
+        }
+        return {
+          ok: true,
+          updatedOnly: false,
+          nextLimitState: canCreateMarketplaceListing(data, user.id)
+        };
+      });
+
+      if (result.error) {
+        apiError(response, 400, result.error);
+        return;
+      }
+
+      response.json({
+        ok: true,
+        updatedOnly: Boolean(result.updatedOnly),
+        limitState: result.nextLimitState || null
+      });
+    }
+  );
+
+  app.post(
+    "/api/marketplace/contact-subscription/purchase",
+    requireApiAuth,
+    requireApiMarketplaceAccountType(
+      ["buyer"],
+      "Only buyer accounts can activate contact access subscriptions."
+    ),
+    async (request, response) => {
+      const autoRenew = Boolean(request.body.autoRenew);
+      const result = await withWriteLock(async (data) => {
+        const user = data.users.find((item) => item.id === request.currentUser.id);
+        if (!user) {
+          return { error: "User account not found." };
+        }
+        ensureUserWallet(user);
+        maybeAutoRenewMarketplaceContactSubscription(data, user.id);
+        const activeSubscription = getActiveMarketplaceContactSubscription(data, user.id);
+        if (activeSubscription) {
+          activeSubscription.autoRenew = autoRenew;
+          activeSubscription.updatedAt = new Date().toISOString();
+          return {
+            ok: true,
+            alreadyActive: true,
+            state: getMarketplaceContactAccessState(data, user.id)
+          };
+        }
+        if (user.walletBalance < marketplaceContactSubscriptionFeeNaira) {
+          return {
+            error: `Insufficient wallet balance. You need ${formatNaira(
+              marketplaceContactSubscriptionFeeNaira
+            )} for monthly contact access.`
+          };
+        }
+
+        const now = new Date();
+        const nowIso = now.toISOString();
+        const paymentId = randomUUID();
+        const walletResult = createWalletEntry(data, {
+          userId: user.id,
+          type: "marketplace_contact_subscription_purchase",
+          direction: "debit",
+          amount: marketplaceContactSubscriptionFeeNaira,
+          description: "Marketplace contact access subscription",
+          reference: `CONTACT-SUB-${Date.now()}`,
+          relatedPaymentId: paymentId
+        });
+        if (walletResult.error) {
+          return { error: walletResult.error };
+        }
+        data.marketplaceContactSubscriptions.push({
+          id: randomUUID(),
+          userId: user.id,
+          amount: marketplaceContactSubscriptionFeeNaira,
+          status: "active",
+          autoRenew,
+          startedAt: nowIso,
+          expiresAt: addDaysIso(now, marketplaceContactSubscriptionDurationDays),
+          createdAt: nowIso,
+          updatedAt: nowIso
+        });
+        data.payments.push(
+          createPaymentRecord({
+            id: paymentId,
+            bookingId: null,
+            hotelId: null,
+            userId: user.id,
+            listingId: null,
+            transactionRef: `HUT-MKT-SUB-${Date.now()}`,
+            transactionType: "marketplace_contact_subscription",
+            paymentProvider: "wallet",
+            paymentExternalId: `WALLET-${user.id}`,
+            grossAmount: marketplaceContactSubscriptionFeeNaira,
+            hotelPayout: 0,
+            platformEarning: marketplaceContactSubscriptionFeeNaira,
+            commissionRate: 0,
+            hotelBankAccount: null,
+            platformBankAccount: data.platform.bankAccount,
+            paymentStatus: "paid",
+            settled: true,
+            settledAt: nowIso,
+            createdAt: nowIso
+          })
+        );
+        return {
+          ok: true,
+          alreadyActive: false,
+          state: getMarketplaceContactAccessState(data, user.id)
+        };
+      });
+
+      if (result.error) {
+        apiError(response, 400, result.error);
+        return;
+      }
+      response.json({
+        ok: true,
+        alreadyActive: Boolean(result.alreadyActive),
+        state: result.state
+      });
+    }
+  );
+
+  app.post(
+    "/api/marketplace/listings/:listingId/unlock-contact",
+    requireApiAuth,
+    requireApiMarketplaceAccountType(
+      ["buyer"],
+      "Only buyer accounts can unlock seller contact details."
+    ),
+    async (request, response) => {
+      const listingId = request.params.listingId;
+      const result = await withWriteLock(async (data) => {
+        const listing = data.marketplaceListings.find((item) => item.id === listingId);
+        if (!listing || listing.status !== "active") {
+          return { error: "Listing not available for contact unlock." };
+        }
+        if (listing.sellerUserId === request.currentUser.id) {
+          return { error: "You already own this listing." };
+        }
+        const buyer = data.users.find((item) => item.id === request.currentUser.id);
+        if (!buyer) {
+          return { error: "Buyer account not found." };
+        }
+        ensureUserWallet(buyer);
+        maybeAutoRenewMarketplaceContactSubscription(data, buyer.id);
+
+        const existingUnlock = data.marketplaceUnlocks.find(
+          (unlock) =>
+            unlock.listingId === listingId && unlock.buyerUserId === request.currentUser.id
+        );
+        if (existingUnlock) {
+          return { ok: true, alreadyUnlocked: true };
+        }
+        const activeContactSubscription = getActiveMarketplaceContactSubscription(data, buyer.id);
+        if (!activeContactSubscription) {
+          return {
+            error: `Seller contact unlock now requires an active marketplace subscription (${formatNaira(
+              marketplaceContactSubscriptionFeeNaira
+            )}/month).`
+          };
+        }
+        data.marketplaceUnlocks.push({
+          id: randomUUID(),
+          listingId: listing.id,
+          buyerUserId: buyer.id,
+          sellerUserId: listing.sellerUserId,
+          fee: 0,
+          unlockMethod: "subscription",
+          subscriptionId: activeContactSubscription.id,
+          pointsUsed: 0,
+          createdAt: new Date().toISOString()
+        });
+        return { ok: true };
+      });
+
+      if (result.error) {
+        apiError(response, 400, result.error);
+        return;
+      }
+      response.json({
+        ok: true,
+        alreadyUnlocked: Boolean(result.alreadyUnlocked)
       });
     }
   );
