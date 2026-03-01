@@ -153,7 +153,7 @@ test("hotel admin can lookup booking by reference number", async () => {
   assert.match(missingResult.text, /No bookings matched that reference/);
 });
 
-test("marketplace listing limit, wallet topup and contact unlock flow", async () => {
+test("marketplace listing plans and subscription-based contact unlock flow", async () => {
   const app = createApp();
   const seller = supertest.agent(app);
 
@@ -226,12 +226,32 @@ test("marketplace listing limit, wallet topup and contact unlock flow", async ()
     .post("/marketplace/plans/purchase")
     .type("form")
     .send({
-      planId: "basic"
+      planId: "basic",
+      autoRenew: "yes"
     })
     .expect(302);
 
   const planPage = await buyer.get("/marketplace/new").expect(200);
-  assert.match(planPage.text, /0 \/ 10/);
+  assert.match(planPage.text, /0 \/ 20/);
+
+  await buyer
+    .post("/marketplace/listings/listing-used-iphone-13/unlock-contact")
+    .type("form")
+    .send({})
+    .expect(302);
+
+  const lockedListingPage = await buyer.get("/marketplace/listings/listing-used-iphone-13").expect(200);
+  assert.doesNotMatch(lockedListingPage.text, /\+2348030000201/);
+  assert.match(lockedListingPage.text, /Activate contact access/);
+
+  await buyer
+    .post("/marketplace/contact-subscription/purchase")
+    .type("form")
+    .send({
+      autoRenew: "yes",
+      returnTo: "/marketplace/listings/listing-used-iphone-13"
+    })
+    .expect(302);
 
   await buyer
     .post("/marketplace/listings/listing-used-iphone-13/unlock-contact")
@@ -243,53 +263,17 @@ test("marketplace listing limit, wallet topup and contact unlock flow", async ()
   assert.match(listingPage.text, /\+2348030000201/);
 });
 
-test("marketplace points reward works after five paid unlocks", async () => {
+test("marketplace contact subscription updates auto-renew without double-charge", async () => {
   const app = createApp();
-  const seller = supertest.agent(app);
   const buyer = supertest.agent(app);
   const unique = Date.now();
 
-  await seller
-    .post("/auth/register")
-    .type("form")
-    .send({
-      name: "Points Seller",
-      phone: `+23480388${String(unique).slice(-4)}`,
-      email: `pointsseller${unique}@hut.app`,
-      password: "Seller@123",
-      confirmPassword: "Seller@123",
-      next: "/marketplace/new"
-    })
-    .expect(302);
-
-  const createdListingIds = [];
-  for (let index = 0; index < 3; index += 1) {
-    const createResponse = await seller
-      .post("/marketplace/listings")
-      .type("form")
-      .send({
-        title: `Points Listing ${index + 1}`,
-        description: "Listing used for marketplace points reward test.",
-        category: "Electronics",
-        condition: "Used",
-        location: "Bonny Island",
-        neighborhood: "Sandfield",
-        price: "55000"
-      })
-      .expect(302);
-    const match = (createResponse.headers.location || "").match(
-      /^\/marketplace\/listings\/([^/]+)$/
-    );
-    assert.ok(match);
-    createdListingIds.push(match[1]);
-  }
-
-  const buyerEmail = `pointsbuyer${unique}@hut.app`;
+  const buyerEmail = `subbuyer${unique}@hut.app`;
   await buyer
     .post("/auth/register")
     .type("form")
     .send({
-      name: "Points Buyer",
+      name: "Subscription Buyer",
       phone: `+23480399${String(unique).slice(-4)}`,
       email: buyerEmail,
       password: "Buyer@123",
@@ -302,32 +286,47 @@ test("marketplace points reward works after five paid unlocks", async () => {
     .post("/wallet/topup")
     .type("form")
     .send({
-      amount: "1000",
-      reference: `POINTS-${unique}`
+      amount: "1500",
+      reference: `SUB-${unique}`
     })
     .expect(302);
 
-  const paidUnlockTargets = [
-    "listing-used-iphone-13",
-    "listing-dining-set",
-    "listing-ps4-console",
-    createdListingIds[0],
-    createdListingIds[1]
-  ];
-  for (const listingId of paidUnlockTargets) {
-    await buyer
-      .post(`/marketplace/listings/${listingId}/unlock-contact`)
-      .type("form")
-      .send({})
-      .expect(302);
-  }
+  await buyer
+    .post("/marketplace/contact-subscription/purchase")
+    .type("form")
+    .send({
+      autoRenew: "yes",
+      returnTo: "/marketplace"
+    })
+    .expect(302);
 
-  const db = JSON.parse(await fs.readFile(dbFilePath, "utf8"));
+  let db = JSON.parse(await fs.readFile(dbFilePath, "utf8"));
   const buyerRow = (db.users || []).find((user) => user.email === buyerEmail);
   assert.ok(buyerRow);
-  assert.equal(buyerRow.walletBalance, 0);
-  assert.equal(buyerRow.marketplacePaidUnlockCount, 5);
-  assert.equal(buyerRow.marketplacePoints, 5);
+  assert.equal(buyerRow.walletBalance, 1000);
+  const activeSubscription = (db.marketplaceContactSubscriptions || []).find(
+    (subscription) => subscription.userId === buyerRow.id && subscription.status === "active"
+  );
+  assert.ok(activeSubscription);
+  assert.equal(activeSubscription.autoRenew, true);
+
+  await buyer
+    .post("/marketplace/contact-subscription/purchase")
+    .type("form")
+    .send({
+      returnTo: "/marketplace"
+    })
+    .expect(302);
+
+  db = JSON.parse(await fs.readFile(dbFilePath, "utf8"));
+  const buyerRowAfterToggle = (db.users || []).find((user) => user.email === buyerEmail);
+  assert.ok(buyerRowAfterToggle);
+  assert.equal(buyerRowAfterToggle.walletBalance, 1000);
+  const activeSubscriptionsAfterToggle = (db.marketplaceContactSubscriptions || []).filter(
+    (subscription) => subscription.userId === buyerRowAfterToggle.id && subscription.status === "active"
+  );
+  assert.equal(activeSubscriptionsAfterToggle.length, 1);
+  assert.equal(activeSubscriptionsAfterToggle[0].autoRenew, false);
 });
 
 test("users can submit seller and hotel reviews with ratings", async () => {

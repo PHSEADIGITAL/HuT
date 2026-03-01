@@ -1602,6 +1602,37 @@ body.marketplace-mode .card {
 }
 
 @media (max-width: 720px) {
+  .container {
+    width: min(100%, 100vw);
+    padding-left: 0.65rem;
+    padding-right: 0.65rem;
+  }
+
+  button,
+  .button-link {
+    min-height: 42px;
+  }
+
+  body.marketplace-mode .topbar-inner {
+    gap: 0.55rem;
+    padding-top: 0.6rem;
+    padding-bottom: 0.6rem;
+  }
+
+  body.marketplace-mode .nav {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 0.65rem;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding-bottom: 0.15rem;
+  }
+
+  body.marketplace-mode .auth-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
   .landing-switcher {
     flex-direction: column;
     align-items: flex-start;
@@ -1640,6 +1671,13 @@ body.marketplace-mode .card {
     align-items: stretch;
   }
 
+  .marketplace-results-meta {
+    position: sticky;
+    top: 60px;
+    z-index: 5;
+    background: #ffffff;
+  }
+
   .marketplace-filter-form {
     width: 100%;
   }
@@ -1650,6 +1688,15 @@ body.marketplace-mode .card {
 
   .marketplace-global-search {
     grid-template-columns: 1fr;
+  }
+
+  .market-result-card {
+    padding: 0.55rem;
+    gap: 0.6rem;
+  }
+
+  .market-result-media img {
+    height: 190px;
   }
 
   .marketplace-search-btn {

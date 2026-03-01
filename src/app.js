@@ -350,7 +350,8 @@ function withRoomDisplayMeta(room) {
 }
 
 const marketplaceListingLimitPerMonth = 4;
-const contactUnlockFeeNaira = 200;
+const marketplaceContactSubscriptionFeeNaira = 500;
+const marketplaceContactSubscriptionDurationDays = 30;
 const passwordOtpExpiryMinutes = 10;
 const marketplaceUploadDir = path.join(
   __dirname,
@@ -457,18 +458,32 @@ const marketplaceCategoryThumbnailMap = {
 };
 const marketplacePlans = [
   {
+    id: "free",
+    name: "Free Plan",
+    amount: 0,
+    listingLimit: 4,
+    description: "List up to 4 items each month."
+  },
+  {
     id: "basic",
     name: "Basic Plan",
     amount: 2000,
-    extraListings: 6,
-    description: "Increase monthly limit by 6 listings."
+    listingLimit: 20,
+    description: "List up to 20 items each month."
   },
   {
     id: "premium",
     name: "Premium Plan",
+    amount: 3500,
+    listingLimit: 40,
+    description: "List up to 40 items each month."
+  },
+  {
+    id: "gold",
+    name: "Gold Plan",
     amount: 5000,
-    extraListings: 21,
-    description: "Increase monthly limit by 21 listings."
+    listingLimit: null,
+    description: "Unlimited monthly listings."
   }
 ];
 
@@ -852,29 +867,353 @@ function getMarketplacePlanById(planId) {
   return marketplacePlans.find((plan) => plan.id === planId) || null;
 }
 
-function getMonthlyPlanExtraListings(data, userId, monthKey) {
-  return data.marketplaceSubscriptions
+function getListingLimitForPlan(plan) {
+  if (!plan) {
+    return marketplaceListingLimitPerMonth;
+  }
+  if (plan.listingLimit === null || plan.listingLimit === undefined) {
+    return Number.POSITIVE_INFINITY;
+  }
+  const parsed = Math.floor(toNumber(plan.listingLimit, marketplaceListingLimitPerMonth));
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : Number.POSITIVE_INFINITY;
+}
+
+function formatListingLimit(limit) {
+  return Number.isFinite(limit) ? String(limit) : "Unlimited";
+}
+
+function getListingLimitForSubscription(subscription) {
+  if (!subscription) {
+    return marketplaceListingLimitPerMonth;
+  }
+  if (subscription.listingLimit === null || subscription.listingLimit === undefined) {
+    if (Number.isFinite(subscription.extraListings)) {
+      return marketplaceListingLimitPerMonth + Math.max(0, Math.floor(subscription.extraListings));
+    }
+    const fallbackPlan = getMarketplacePlanById(subscription.planId);
+    return getListingLimitForPlan(fallbackPlan);
+  }
+  const parsed = Math.floor(toNumber(subscription.listingLimit, marketplaceListingLimitPerMonth));
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : Number.POSITIVE_INFINITY;
+}
+
+function getActiveListingSubscriptionsForMonth(data, userId, monthKey) {
+  return (data.marketplaceSubscriptions || []).filter(
+    (subscription) =>
+      subscription.userId === userId &&
+      (subscription.subscriptionType || "listing") === "listing" &&
+      subscription.monthKey === monthKey &&
+      subscription.status === "active"
+  );
+}
+
+function pickPrimaryListingSubscription(subscriptions) {
+  if (!subscriptions.length) {
+    return null;
+  }
+  const sorted = [...subscriptions].sort((a, b) => {
+    const aLimit = getListingLimitForSubscription(a);
+    const bLimit = getListingLimitForSubscription(b);
+    if (Number.isFinite(aLimit) !== Number.isFinite(bLimit)) {
+      return Number.isFinite(aLimit) ? 1 : -1;
+    }
+    if (aLimit !== bLimit) {
+      return bLimit - aLimit;
+    }
+    return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+  });
+  return sorted[0];
+}
+
+function getListingPlanState(data, userId, monthKey) {
+  const activeSubscriptions = getActiveListingSubscriptionsForMonth(data, userId, monthKey);
+  const activeSubscription = pickPrimaryListingSubscription(activeSubscriptions);
+  if (!activeSubscription) {
+    const freePlan = getMarketplacePlanById("free");
+    const listingLimit = getListingLimitForPlan(freePlan);
+    return {
+      plan: freePlan,
+      activeSubscription: null,
+      listingLimit,
+      listingLimitDisplay: formatListingLimit(listingLimit),
+      autoRenew: false,
+      activeSubscriptions: []
+    };
+  }
+  const plan = getMarketplacePlanById(activeSubscription.planId) || getMarketplacePlanById("free");
+  const listingLimit = getListingLimitForSubscription(activeSubscription);
+  return {
+    plan,
+    activeSubscription,
+    listingLimit,
+    listingLimitDisplay: formatListingLimit(listingLimit),
+    autoRenew: Boolean(activeSubscription.autoRenew),
+    activeSubscriptions
+  };
+}
+
+function addDaysIso(dateValue, days) {
+  const nextDate = dateValue instanceof Date ? new Date(dateValue) : new Date(dateValue);
+  nextDate.setUTCDate(nextDate.getUTCDate() + days);
+  return nextDate.toISOString();
+}
+
+function expireMarketplaceContactSubscriptions(data, userId, dateValue = new Date()) {
+  const now = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  const nowIso = now.toISOString();
+  for (const subscription of data.marketplaceContactSubscriptions || []) {
+    if (subscription.userId !== userId || subscription.status !== "active") {
+      continue;
+    }
+    const expiresAt = new Date(subscription.expiresAt || 0);
+    if (!Number.isNaN(expiresAt.getTime()) && expiresAt <= now) {
+      subscription.status = "expired";
+      subscription.updatedAt = nowIso;
+    }
+  }
+}
+
+function getActiveMarketplaceContactSubscription(data, userId, dateValue = new Date()) {
+  const now = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  expireMarketplaceContactSubscriptions(data, userId, now);
+  const activeSubscriptions = (data.marketplaceContactSubscriptions || [])
+    .filter((subscription) => subscription.userId === userId && subscription.status === "active")
+    .filter((subscription) => new Date(subscription.expiresAt || 0) > now)
+    .sort((a, b) => new Date(b.expiresAt || 0) - new Date(a.expiresAt || 0));
+  return activeSubscriptions[0] || null;
+}
+
+function getLatestMarketplaceContactSubscription(data, userId) {
+  return (data.marketplaceContactSubscriptions || [])
+    .filter((subscription) => subscription.userId === userId)
+    .sort((a, b) => {
+      const aDate = new Date(a.expiresAt || a.createdAt || 0);
+      const bDate = new Date(b.expiresAt || b.createdAt || 0);
+      return bDate - aDate;
+    })[0] || null;
+}
+
+function getMarketplaceContactAccessState(data, userId, dateValue = new Date()) {
+  const now = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  const activeSubscription = getActiveMarketplaceContactSubscription(data, userId, now);
+  if (activeSubscription) {
+    return {
+      hasActive: true,
+      subscriptionId: activeSubscription.id,
+      autoRenew: Boolean(activeSubscription.autoRenew),
+      expiresAt: activeSubscription.expiresAt,
+      amount: activeSubscription.amount || marketplaceContactSubscriptionFeeNaira
+    };
+  }
+
+  const latestSubscription = getLatestMarketplaceContactSubscription(data, userId);
+  return {
+    hasActive: false,
+    subscriptionId: latestSubscription ? latestSubscription.id : null,
+    autoRenew: latestSubscription ? Boolean(latestSubscription.autoRenew) : false,
+    expiresAt: latestSubscription ? latestSubscription.expiresAt : null,
+    amount: marketplaceContactSubscriptionFeeNaira
+  };
+}
+
+function maybeAutoRenewMarketplaceListingPlan(data, userId, dateValue = new Date()) {
+  const user = data.users.find((item) => item.id === userId);
+  if (!user) {
+    return { renewed: false };
+  }
+  ensureUserWallet(user);
+  const monthKey = toMonthKey(dateValue);
+  if (getActiveListingSubscriptionsForMonth(data, userId, monthKey).length) {
+    return { renewed: false };
+  }
+
+  const latestSubscription = (data.marketplaceSubscriptions || [])
     .filter(
       (subscription) =>
         subscription.userId === userId &&
-        subscription.monthKey === monthKey &&
+        (subscription.subscriptionType || "listing") === "listing" &&
         subscription.status === "active"
     )
-    .reduce((sum, subscription) => sum + (subscription.extraListings || 0), 0);
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0];
+
+  if (!latestSubscription || !latestSubscription.autoRenew) {
+    return { renewed: false };
+  }
+  const plan = getMarketplacePlanById(latestSubscription.planId);
+  if (!plan || plan.amount <= 0 || plan.id === "free") {
+    return { renewed: false };
+  }
+  if (user.walletBalance < plan.amount) {
+    return { renewed: false, reason: "insufficient_funds" };
+  }
+
+  const paymentId = randomUUID();
+  const walletResult = createWalletEntry(data, {
+    userId: user.id,
+    type: "marketplace_listing_subscription_renewal",
+    direction: "debit",
+    amount: plan.amount,
+    description: `${plan.name} auto-renewal for ${monthKey}`,
+    reference: `PLAN-REN-${plan.id.toUpperCase()}-${Date.now()}`,
+    relatedPaymentId: paymentId
+  });
+  if (walletResult.error) {
+    return { renewed: false, reason: walletResult.error };
+  }
+
+  const nowIso = new Date().toISOString();
+  data.marketplaceSubscriptions.push({
+    id: randomUUID(),
+    userId: user.id,
+    subscriptionType: "listing",
+    planId: plan.id,
+    amount: plan.amount,
+    listingLimit: plan.listingLimit,
+    monthKey,
+    status: "active",
+    autoRenew: true,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    renewedFromSubscriptionId: latestSubscription.id
+  });
+
+  data.payments.push(
+    createPaymentRecord({
+      id: paymentId,
+      bookingId: null,
+      hotelId: null,
+      userId: user.id,
+      listingId: null,
+      transactionRef: `HUT-MPLN-REN-${Date.now()}`,
+      transactionType: "marketplace_listing_subscription_renewal",
+      paymentProvider: "wallet",
+      paymentExternalId: `WALLET-${user.id}`,
+      grossAmount: plan.amount,
+      hotelPayout: 0,
+      platformEarning: plan.amount,
+      commissionRate: 0,
+      hotelBankAccount: null,
+      platformBankAccount: data.platform.bankAccount,
+      paymentStatus: "paid",
+      settled: true,
+      settledAt: nowIso,
+      createdAt: nowIso
+    })
+  );
+
+  return { renewed: true };
+}
+
+function maybeAutoRenewMarketplaceContactSubscription(data, userId, dateValue = new Date()) {
+  const user = data.users.find((item) => item.id === userId);
+  if (!user) {
+    return { renewed: false };
+  }
+  ensureUserWallet(user);
+  const now = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  if (getActiveMarketplaceContactSubscription(data, userId, now)) {
+    return { renewed: false };
+  }
+
+  const latestSubscription = (data.marketplaceContactSubscriptions || [])
+    .filter(
+      (subscription) =>
+        subscription.userId === userId &&
+        ["active", "expired"].includes(subscription.status || "active")
+    )
+    .sort((a, b) => new Date(b.expiresAt || b.createdAt || 0) - new Date(a.expiresAt || a.createdAt || 0))[0];
+
+  if (!latestSubscription || !latestSubscription.autoRenew) {
+    return { renewed: false };
+  }
+  if (user.walletBalance < marketplaceContactSubscriptionFeeNaira) {
+    return { renewed: false, reason: "insufficient_funds" };
+  }
+
+  const paymentId = randomUUID();
+  const walletResult = createWalletEntry(data, {
+    userId: user.id,
+    type: "marketplace_contact_subscription_renewal",
+    direction: "debit",
+    amount: marketplaceContactSubscriptionFeeNaira,
+    description: "Marketplace contact access auto-renewal",
+    reference: `CONTACT-REN-${Date.now()}`,
+    relatedPaymentId: paymentId
+  });
+  if (walletResult.error) {
+    return { renewed: false, reason: walletResult.error };
+  }
+
+  const nowIso = now.toISOString();
+  const renewal = {
+    id: randomUUID(),
+    userId: user.id,
+    amount: marketplaceContactSubscriptionFeeNaira,
+    status: "active",
+    autoRenew: true,
+    startedAt: nowIso,
+    expiresAt: addDaysIso(now, marketplaceContactSubscriptionDurationDays),
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    renewedFromSubscriptionId: latestSubscription.id
+  };
+  data.marketplaceContactSubscriptions.push(renewal);
+
+  data.payments.push(
+    createPaymentRecord({
+      id: paymentId,
+      bookingId: null,
+      hotelId: null,
+      userId: user.id,
+      listingId: null,
+      transactionRef: `HUT-MKT-SUB-REN-${Date.now()}`,
+      transactionType: "marketplace_contact_subscription_renewal",
+      paymentProvider: "wallet",
+      paymentExternalId: `WALLET-${user.id}`,
+      grossAmount: marketplaceContactSubscriptionFeeNaira,
+      hotelPayout: 0,
+      platformEarning: marketplaceContactSubscriptionFeeNaira,
+      commissionRate: 0,
+      hotelBankAccount: null,
+      platformBankAccount: data.platform.bankAccount,
+      paymentStatus: "paid",
+      settled: true,
+      settledAt: nowIso,
+      createdAt: nowIso
+    })
+  );
+
+  return { renewed: true };
+}
+
+async function refreshMarketplaceAutoRenewalsForUser(userId) {
+  if (!userId) {
+    return;
+  }
+  await withWriteLock(async (data) => {
+    maybeAutoRenewMarketplaceListingPlan(data, userId);
+    maybeAutoRenewMarketplaceContactSubscription(data, userId);
+  });
 }
 
 function canCreateMarketplaceListing(data, userId, dateValue = new Date()) {
   const monthKey = toMonthKey(dateValue);
   const used = countMonthlyListings(data, userId, monthKey);
-  const extraListings = getMonthlyPlanExtraListings(data, userId, monthKey);
-  const includedLimit = marketplaceListingLimitPerMonth + extraListings;
+  const listingPlanState = getListingPlanState(data, userId, monthKey);
+  const includedLimit = listingPlanState.listingLimit;
+  const remaining = Number.isFinite(includedLimit) ? Math.max(0, includedLimit - used) : null;
+  const allowed = !Number.isFinite(includedLimit) || used < includedLimit;
   return {
     used,
     includedLimit,
-    extraListings,
-    remaining: Math.max(0, includedLimit - used),
+    includedLimitDisplay: formatListingLimit(includedLimit),
+    remaining,
+    remainingDisplay: Number.isFinite(includedLimit) ? String(remaining) : "Unlimited",
     monthKey,
-    allowed: used < includedLimit
+    allowed,
+    currentPlan: listingPlanState.plan,
+    activeListingSubscription: listingPlanState.activeSubscription,
+    activeListingSubscriptions: listingPlanState.activeSubscriptions
   };
 }
 
@@ -2379,6 +2718,7 @@ function createApp() {
   );
 
   app.get("/wallet", requireAuth, async (request, response) => {
+    await refreshMarketplaceAutoRenewalsForUser(request.currentUser.id);
     const snapshot = await getSnapshot();
     const user = snapshot.users.find((item) => item.id === request.currentUser.id);
     if (!user) {
@@ -2405,6 +2745,7 @@ function createApp() {
       )
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     const canTopUp = request.currentUser.role !== "hotel_admin";
+    const contactAccessState = getMarketplaceContactAccessState(snapshot, user.id);
 
     response.render("wallet", {
       walletUser: user,
@@ -2412,12 +2753,11 @@ function createApp() {
       unlocks,
       pendingTopups,
       canTopUp,
+      contactAccessState,
       paymentProvider: getPaymentProvider(),
       collectionAccountAlias:
         snapshot.platform.collectionAccountAlias || "HuT Business Collection Account",
-      contactUnlockFeeNaira,
-      marketplacePoints: user.marketplacePoints,
-      marketplacePaidUnlockCount: user.marketplacePaidUnlockCount,
+      marketplaceContactSubscriptionFeeNaira,
       platform: snapshot.platform
     });
   });
@@ -2619,6 +2959,9 @@ function createApp() {
   });
 
   app.get("/marketplace", async (request, response) => {
+    if (request.currentUser) {
+      await refreshMarketplaceAutoRenewalsForUser(request.currentUser.id);
+    }
     const snapshot = await getSnapshot();
     const query = sanitizeMarketplaceText(request.query.q, "");
     const rawCategory = sanitizeMarketplaceText(request.query.category, "");
@@ -2723,29 +3066,22 @@ function createApp() {
     }
 
     let walletBalance = null;
-    let marketplacePoints = 0;
-    let marketplacePaidUnlockCount = 0;
     let limitState = null;
     let activePlanSubscriptions = [];
+    let contactAccessState = null;
     if (request.currentUser) {
       const currentUser = snapshot.users.find((user) => user.id === request.currentUser.id);
       if (currentUser) {
         ensureUserWallet(currentUser);
         walletBalance = currentUser.walletBalance;
-        marketplacePoints = currentUser.marketplacePoints;
-        marketplacePaidUnlockCount = currentUser.marketplacePaidUnlockCount;
         limitState = canCreateMarketplaceListing(snapshot, currentUser.id);
-        activePlanSubscriptions = snapshot.marketplaceSubscriptions
-          .filter(
-            (item) =>
-              item.userId === currentUser.id &&
-              item.monthKey === limitState.monthKey &&
-              item.status === "active"
-          )
+        activePlanSubscriptions = (limitState.activeListingSubscriptions || [])
           .map((item) => ({
             ...item,
-            planName: getMarketplacePlanById(item.planId)?.name || item.planId
+            planName: getMarketplacePlanById(item.planId)?.name || item.planId,
+            listingLimitDisplay: formatListingLimit(getListingLimitForSubscription(item))
           }));
+        contactAccessState = getMarketplaceContactAccessState(snapshot, currentUser.id);
       }
     }
 
@@ -2768,17 +3104,17 @@ function createApp() {
         sort
       },
       walletBalance,
-      marketplacePoints,
-      marketplacePaidUnlockCount,
       marketplacePlans,
       limitState,
       activePlanSubscriptions,
-      contactUnlockFeeNaira,
+      contactAccessState,
+      marketplaceContactSubscriptionFeeNaira,
       platform: snapshot.platform
     });
   });
 
   app.get("/marketplace/new", requireAuth, async (request, response) => {
+    await refreshMarketplaceAutoRenewalsForUser(request.currentUser.id);
     const snapshot = await getSnapshot();
     const limitState = canCreateMarketplaceListing(snapshot, request.currentUser.id);
     const user = snapshot.users.find((item) => item.id === request.currentUser.id);
@@ -2786,17 +3122,13 @@ function createApp() {
     if (user) {
       ensureUserWallet(user);
     }
-    const activePlanSubscriptions = snapshot.marketplaceSubscriptions
-      .filter(
-        (item) =>
-          item.userId === request.currentUser.id &&
-          item.monthKey === limitState.monthKey &&
-          item.status === "active"
-      )
+    const activePlanSubscriptions = (limitState.activeListingSubscriptions || [])
       .map((item) => ({
         ...item,
-        planName: getMarketplacePlanById(item.planId)?.name || item.planId
+        planName: getMarketplacePlanById(item.planId)?.name || item.planId,
+        listingLimitDisplay: formatListingLimit(getListingLimitForSubscription(item))
       }));
+    const contactAccessState = getMarketplaceContactAccessState(snapshot, request.currentUser.id);
     response.render("marketplace-new", {
       limitState,
       categories: marketplaceCategories,
@@ -2808,18 +3140,20 @@ function createApp() {
       marketplacePlans,
       activePlanSubscriptions,
       walletBalance: user ? user.walletBalance : 0,
-      marketplacePoints: user ? user.marketplacePoints : 0,
-      marketplacePaidUnlockCount: user ? user.marketplacePaidUnlockCount : 0,
+      contactAccessState,
+      marketplaceContactSubscriptionFeeNaira,
       platform: snapshot.platform
     });
   });
 
   app.post("/marketplace/plans/purchase", requireAuth, async (request, response) => {
     const planId = sanitizeMarketplaceText(request.body.planId, "").toLowerCase();
+    const autoRenew = String(request.body.autoRenew || "").toLowerCase() === "yes";
+    const returnTo = safeNextPath(request.body.returnTo || "/marketplace/new");
     const plan = getMarketplacePlanById(planId);
-    if (!plan) {
+    if (!plan || plan.id === "free") {
       setFlash(request, "error", "Selected listing plan does not exist.");
-      response.redirect("/marketplace/new");
+      response.redirect(returnTo);
       return;
     }
 
@@ -2829,7 +3163,7 @@ function createApp() {
         "error",
         "Hotel admins cannot purchase marketplace listing plans."
       );
-      response.redirect("/marketplace/new");
+      response.redirect(returnTo);
       return;
     }
 
@@ -2839,36 +3173,182 @@ function createApp() {
         return { error: "User account not found." };
       }
       ensureUserWallet(user);
-      if (user.walletBalance < plan.amount) {
+      const monthKey = toMonthKey(new Date());
+      const nowIso = new Date().toISOString();
+      const currentMonthSubscriptions = getActiveListingSubscriptionsForMonth(
+        data,
+        user.id,
+        monthKey
+      );
+      const primaryCurrentSubscription = pickPrimaryListingSubscription(currentMonthSubscriptions);
+      if (primaryCurrentSubscription && primaryCurrentSubscription.planId === plan.id) {
+        primaryCurrentSubscription.autoRenew = autoRenew;
+        primaryCurrentSubscription.updatedAt = nowIso;
+        return {
+          ok: true,
+          updatedOnly: true,
+          nextLimitState: canCreateMarketplaceListing(data, user.id)
+        };
+      }
+
+      if (plan.amount > 0 && user.walletBalance < plan.amount) {
         return {
           error: `Insufficient wallet balance. You need ${formatNaira(plan.amount)} to purchase this plan.`
         };
       }
 
-      const monthKey = toMonthKey(new Date());
+      let walletResult = null;
+      let paymentId = null;
+      if (plan.amount > 0) {
+        paymentId = randomUUID();
+        walletResult = createWalletEntry(data, {
+          userId: user.id,
+          type: "marketplace_listing_subscription_purchase",
+          direction: "debit",
+          amount: plan.amount,
+          description: `${plan.name} purchase for monthly listing access`,
+          reference: `PLAN-${plan.id.toUpperCase()}-${Date.now()}`,
+          relatedPaymentId: paymentId
+        });
+        if (walletResult.error) {
+          return { error: walletResult.error };
+        }
+      }
+
+      for (const subscription of currentMonthSubscriptions) {
+        subscription.status = "replaced";
+        subscription.updatedAt = nowIso;
+      }
+
+      data.marketplaceSubscriptions.push({
+        id: randomUUID(),
+        userId: user.id,
+        subscriptionType: "listing",
+        planId: plan.id,
+        amount: plan.amount,
+        listingLimit: plan.listingLimit,
+        monthKey,
+        status: "active",
+        autoRenew,
+        createdAt: nowIso,
+        updatedAt: nowIso
+      });
+
+      if (plan.amount > 0 && paymentId) {
+        data.payments.push(
+          createPaymentRecord({
+            id: paymentId,
+            bookingId: null,
+            hotelId: null,
+            userId: user.id,
+            listingId: null,
+            transactionRef: `HUT-MPLN-${Date.now()}`,
+            transactionType: "marketplace_listing_subscription",
+            paymentProvider: "wallet",
+            paymentExternalId: `WALLET-${user.id}`,
+            grossAmount: plan.amount,
+            hotelPayout: 0,
+            platformEarning: plan.amount,
+            commissionRate: 0,
+            hotelBankAccount: null,
+            platformBankAccount: data.platform.bankAccount,
+            paymentStatus: "paid",
+            settled: true,
+            settledAt: nowIso,
+            createdAt: nowIso
+          })
+        );
+      }
+
+      const nextLimitState = canCreateMarketplaceListing(data, user.id);
+      return {
+        ok: true,
+        updatedOnly: false,
+        balanceAfter: walletResult ? walletResult.balanceAfter : user.walletBalance,
+        nextLimitState
+      };
+    });
+
+    if (result.error) {
+      setFlash(request, "error", result.error);
+      response.redirect(returnTo);
+      return;
+    }
+
+    if (result.updatedOnly) {
+      setFlash(request, "success", `${plan.name} auto-renew setting updated.`);
+    } else {
+      setFlash(
+        request,
+        "success",
+        `${plan.name} activated. Monthly listing limit: ${result.nextLimitState.includedLimitDisplay}.`
+      );
+    }
+    response.redirect(returnTo);
+  });
+
+  app.post("/marketplace/contact-subscription/purchase", requireAuth, async (request, response) => {
+    const autoRenew = String(request.body.autoRenew || "").toLowerCase() === "yes";
+    const returnTo = safeNextPath(request.body.returnTo || "/marketplace");
+    if (request.currentUser.role === "hotel_admin") {
+      setFlash(request, "error", "Hotel admins cannot purchase marketplace contact subscriptions.");
+      response.redirect(returnTo);
+      return;
+    }
+
+    const result = await withWriteLock(async (data) => {
+      const user = data.users.find((item) => item.id === request.currentUser.id);
+      if (!user) {
+        return { error: "User account not found." };
+      }
+      ensureUserWallet(user);
+
+      maybeAutoRenewMarketplaceContactSubscription(data, user.id);
+      const activeSubscription = getActiveMarketplaceContactSubscription(data, user.id);
+      if (activeSubscription) {
+        activeSubscription.autoRenew = autoRenew;
+        activeSubscription.updatedAt = new Date().toISOString();
+        return {
+          ok: true,
+          alreadyActive: true,
+          expiresAt: activeSubscription.expiresAt
+        };
+      }
+
+      if (user.walletBalance < marketplaceContactSubscriptionFeeNaira) {
+        return {
+          error: `Insufficient wallet balance. You need ${formatNaira(
+            marketplaceContactSubscriptionFeeNaira
+          )} for monthly contact access.`
+        };
+      }
+
+      const now = new Date();
+      const nowIso = now.toISOString();
       const paymentId = randomUUID();
       const walletResult = createWalletEntry(data, {
         userId: user.id,
-        type: "marketplace_plan_purchase",
+        type: "marketplace_contact_subscription_purchase",
         direction: "debit",
-        amount: plan.amount,
-        description: `${plan.name} purchase for listing limit increase`,
-        reference: `PLAN-${plan.id.toUpperCase()}-${Date.now()}`,
+        amount: marketplaceContactSubscriptionFeeNaira,
+        description: "Marketplace contact access subscription",
+        reference: `CONTACT-SUB-${Date.now()}`,
         relatedPaymentId: paymentId
       });
       if (walletResult.error) {
         return { error: walletResult.error };
       }
 
-      data.marketplaceSubscriptions.push({
+      data.marketplaceContactSubscriptions.push({
         id: randomUUID(),
         userId: user.id,
-        planId: plan.id,
-        amount: plan.amount,
-        extraListings: plan.extraListings,
-        monthKey,
+        amount: marketplaceContactSubscriptionFeeNaira,
         status: "active",
-        createdAt: new Date().toISOString()
+        autoRenew,
+        startedAt: nowIso,
+        expiresAt: addDaysIso(now, marketplaceContactSubscriptionDurationDays),
+        createdAt: nowIso,
+        updatedAt: nowIso
       });
 
       data.payments.push(
@@ -2878,43 +3358,46 @@ function createApp() {
           hotelId: null,
           userId: user.id,
           listingId: null,
-          transactionRef: `HUT-MPLN-${Date.now()}`,
-          transactionType: "marketplace_plan_purchase",
+          transactionRef: `HUT-MKT-SUB-${Date.now()}`,
+          transactionType: "marketplace_contact_subscription",
           paymentProvider: "wallet",
           paymentExternalId: `WALLET-${user.id}`,
-          grossAmount: plan.amount,
+          grossAmount: marketplaceContactSubscriptionFeeNaira,
           hotelPayout: 0,
-          platformEarning: plan.amount,
+          platformEarning: marketplaceContactSubscriptionFeeNaira,
           commissionRate: 0,
           hotelBankAccount: null,
           platformBankAccount: data.platform.bankAccount,
           paymentStatus: "paid",
           settled: true,
-          settledAt: new Date().toISOString(),
-          createdAt: new Date().toISOString()
+          settledAt: nowIso,
+          createdAt: nowIso
         })
       );
 
-      const nextLimitState = canCreateMarketplaceListing(data, user.id);
       return {
         ok: true,
-        balanceAfter: walletResult.balanceAfter,
-        nextLimitState
+        alreadyActive: false,
+        balanceAfter: walletResult.balanceAfter
       };
     });
 
     if (result.error) {
       setFlash(request, "error", result.error);
-      response.redirect("/marketplace/new");
+      response.redirect(returnTo);
       return;
     }
 
-    setFlash(
-      request,
-      "success",
-      `${plan.name} activated. New monthly listing limit: ${result.nextLimitState.includedLimit}.`
-    );
-    response.redirect("/marketplace/new");
+    if (result.alreadyActive) {
+      setFlash(
+        request,
+        "success",
+        `Contact access is already active until ${result.expiresAt}. Auto-renew updated.`
+      );
+    } else {
+      setFlash(request, "success", "Marketplace contact subscription activated successfully.");
+    }
+    response.redirect(returnTo);
   });
 
   app.post(
@@ -2954,10 +3437,11 @@ function createApp() {
           return { error: "Seller account not found." };
         }
 
+        maybeAutoRenewMarketplaceListingPlan(data, seller.id);
         const limitState = canCreateMarketplaceListing(data, seller.id);
         if (!limitState.allowed) {
           return {
-            error: `Monthly listing limit reached. You can only create ${limitState.includedLimit} listings this month on your current plan.`
+            error: `Monthly listing limit reached. You can only create ${limitState.includedLimitDisplay} listings this month on your current plan.`
           };
         }
 
@@ -2992,6 +3476,7 @@ function createApp() {
   );
 
   app.get("/marketplace/my-listings", requireAuth, async (request, response) => {
+    await refreshMarketplaceAutoRenewalsForUser(request.currentUser.id);
     const snapshot = await getSnapshot();
     const listings = snapshot.marketplaceListings
       .filter((item) => item.sellerUserId === request.currentUser.id)
@@ -3002,17 +3487,13 @@ function createApp() {
     if (user) {
       ensureUserWallet(user);
     }
-    const activePlanSubscriptions = snapshot.marketplaceSubscriptions
-      .filter(
-        (item) =>
-          item.userId === request.currentUser.id &&
-          item.monthKey === limitState.monthKey &&
-          item.status === "active"
-      )
+    const activePlanSubscriptions = (limitState.activeListingSubscriptions || [])
       .map((item) => ({
         ...item,
-        planName: getMarketplacePlanById(item.planId)?.name || item.planId
+        planName: getMarketplacePlanById(item.planId)?.name || item.planId,
+        listingLimitDisplay: formatListingLimit(getListingLimitForSubscription(item))
       }));
+    const contactAccessState = getMarketplaceContactAccessState(snapshot, request.currentUser.id);
     response.render("marketplace-my-listings", {
       listings,
       categories: marketplaceCategories,
@@ -3020,8 +3501,8 @@ function createApp() {
       marketplacePlans,
       activePlanSubscriptions,
       walletBalance: user ? user.walletBalance : 0,
-      marketplacePoints: user ? user.marketplacePoints : 0,
-      marketplacePaidUnlockCount: user ? user.marketplacePaidUnlockCount : 0,
+      contactAccessState,
+      marketplaceContactSubscriptionFeeNaira,
       platform: snapshot.platform
     });
   });
@@ -3050,6 +3531,9 @@ function createApp() {
   });
 
   app.get("/marketplace/listings/:listingId", async (request, response) => {
+    if (request.currentUser) {
+      await refreshMarketplaceAutoRenewalsForUser(request.currentUser.id);
+    }
     const snapshot = await getSnapshot();
     const listing = snapshot.marketplaceListings.find(
       (item) => item.id === request.params.listingId
@@ -3081,15 +3565,21 @@ function createApp() {
     );
 
     let walletBalance = null;
-    let marketplacePoints = 0;
+    let contactAccessState = null;
     if (request.currentUser) {
       const currentUser = snapshot.users.find((user) => user.id === request.currentUser.id);
       if (currentUser) {
         ensureUserWallet(currentUser);
         walletBalance = currentUser.walletBalance;
-        marketplacePoints = currentUser.marketplacePoints;
+        contactAccessState = getMarketplaceContactAccessState(snapshot, currentUser.id);
       }
     }
+    const canUnlockWithSubscription = Boolean(
+      canUnlock && contactAccessState && contactAccessState.hasActive
+    );
+    const needsContactSubscription = Boolean(
+      canUnlock && (!contactAccessState || !contactAccessState.hasActive)
+    );
 
     const relatedListings = snapshot.marketplaceListings
       .filter(
@@ -3108,9 +3598,11 @@ function createApp() {
       sellerRating,
       canViewContact,
       canUnlock,
+      canUnlockWithSubscription,
+      needsContactSubscription,
       walletBalance,
-      marketplacePoints,
-      contactUnlockFeeNaira,
+      contactAccessState,
+      marketplaceContactSubscriptionFeeNaira,
       relatedListings,
       platform: snapshot.platform
     });
@@ -3245,6 +3737,7 @@ function createApp() {
           return { error: "Buyer account not found." };
         }
         ensureUserWallet(buyer);
+        maybeAutoRenewMarketplaceContactSubscription(data, buyer.id);
 
         const existingUnlock = data.marketplaceUnlocks.find(
           (unlock) =>
@@ -3254,67 +3747,13 @@ function createApp() {
           return { ok: true, alreadyUnlocked: true };
         }
 
-        let usedPoints = false;
-        let earnedPoints = 0;
-        let unlockFee = contactUnlockFeeNaira;
-
-        if (buyer.marketplacePoints >= 5) {
-          buyer.marketplacePoints -= 5;
-          usedPoints = true;
-          unlockFee = 0;
-        } else {
-          if (buyer.walletBalance < contactUnlockFeeNaira) {
-            return {
-              error: `Insufficient wallet balance. Fund your wallet with at least ${formatNaira(
-                contactUnlockFeeNaira
-              )} or earn 5 points to unlock for free.`
-            };
-          }
-
-          const paymentId = randomUUID();
-          const walletResult = createWalletEntry(data, {
-            userId: buyer.id,
-            type: "contact_unlock",
-            direction: "debit",
-            amount: contactUnlockFeeNaira,
-            description: "Marketplace seller contact unlock fee",
-            reference: `UNLOCK-${listing.id.slice(0, 8)}-${Date.now()}`,
-            relatedListingId: listing.id,
-            relatedPaymentId: paymentId
-          });
-          if (walletResult.error) {
-            return { error: walletResult.error };
-          }
-
-          buyer.marketplacePaidUnlockCount += 1;
-          if (buyer.marketplacePaidUnlockCount % 5 === 0) {
-            buyer.marketplacePoints += 5;
-            earnedPoints = 5;
-          }
-
-          data.payments.push(
-            createPaymentRecord({
-              id: paymentId,
-              bookingId: null,
-              hotelId: null,
-              userId: buyer.id,
-              listingId: listing.id,
-              transactionRef: `HUT-MKT-${Date.now()}`,
-              transactionType: "marketplace_contact_unlock",
-              paymentProvider: "wallet",
-              paymentExternalId: `WALLET-${buyer.id}`,
-              grossAmount: contactUnlockFeeNaira,
-              hotelPayout: 0,
-              platformEarning: contactUnlockFeeNaira,
-              commissionRate: 0,
-              hotelBankAccount: null,
-              platformBankAccount: data.platform.bankAccount,
-              paymentStatus: "paid",
-              settled: true,
-              settledAt: new Date().toISOString(),
-              createdAt: new Date().toISOString()
-            })
-          );
+        const activeContactSubscription = getActiveMarketplaceContactSubscription(data, buyer.id);
+        if (!activeContactSubscription) {
+          return {
+            error: `Seller contact unlock now requires an active marketplace subscription (${formatNaira(
+              marketplaceContactSubscriptionFeeNaira
+            )}/month).`
+          };
         }
 
         data.marketplaceUnlocks.push({
@@ -3322,43 +3761,16 @@ function createApp() {
           listingId: listing.id,
           buyerUserId: buyer.id,
           sellerUserId: listing.sellerUserId,
-          fee: unlockFee,
-          unlockMethod: usedPoints ? "points" : "wallet",
-          pointsUsed: usedPoints ? 5 : 0,
+          fee: 0,
+          unlockMethod: "subscription",
+          subscriptionId: activeContactSubscription.id,
+          pointsUsed: 0,
           createdAt: new Date().toISOString()
         });
 
-        if (usedPoints) {
-          data.payments.push(
-            createPaymentRecord({
-              id: randomUUID(),
-              bookingId: null,
-              hotelId: null,
-              userId: buyer.id,
-              listingId: listing.id,
-              transactionRef: `HUT-MKT-PTS-${Date.now()}`,
-              transactionType: "marketplace_contact_unlock_points",
-              paymentProvider: "points",
-              paymentExternalId: `POINTS-${buyer.id}`,
-              grossAmount: 0,
-              hotelPayout: 0,
-              platformEarning: 0,
-              commissionRate: 0,
-              hotelBankAccount: null,
-              platformBankAccount: data.platform.bankAccount,
-              paymentStatus: "paid",
-              settled: true,
-              settledAt: new Date().toISOString(),
-              createdAt: new Date().toISOString()
-            })
-          );
-        }
-
         return {
           ok: true,
-          usedPoints,
-          earnedPoints,
-          pointsBalance: buyer.marketplacePoints
+          subscriptionExpiresAt: activeContactSubscription.expiresAt
         };
       });
 
@@ -3366,20 +3778,12 @@ function createApp() {
         setFlash(request, "error", result.error);
       } else if (result.alreadyUnlocked) {
         setFlash(request, "success", "Contact already unlocked for this listing.");
-      } else if (result.usedPoints) {
-        setFlash(
-          request,
-          "success",
-          `Seller contact unlocked using 5 points. Remaining points: ${result.pointsBalance}.`
-        );
-      } else if (result.earnedPoints > 0) {
-        setFlash(
-          request,
-          "success",
-          `Seller contact unlocked successfully. You earned ${result.earnedPoints} marketplace points.`
-        );
       } else {
-        setFlash(request, "success", "Seller contact unlocked successfully.");
+        setFlash(
+          request,
+          "success",
+          `Seller contact unlocked successfully. Access is valid while your subscription remains active (current expiry: ${result.subscriptionExpiresAt}).`
+        );
       }
 
       response.redirect(`/marketplace/listings/${listingId}`);
@@ -3406,10 +3810,22 @@ function createApp() {
         .filter((payment) => payment.transactionType === "premium_subscription")
         .reduce((sum, payment) => sum + payment.platformEarning, 0);
       const marketplaceRevenue = allPayments
-        .filter((payment) => payment.transactionType === "marketplace_contact_unlock")
+        .filter((payment) =>
+          [
+            "marketplace_contact_unlock",
+            "marketplace_contact_subscription",
+            "marketplace_contact_subscription_renewal"
+          ].includes(payment.transactionType)
+        )
         .reduce((sum, payment) => sum + payment.platformEarning, 0);
       const marketplacePlanRevenue = allPayments
-        .filter((payment) => payment.transactionType === "marketplace_plan_purchase")
+        .filter((payment) =>
+          [
+            "marketplace_plan_purchase",
+            "marketplace_listing_subscription",
+            "marketplace_listing_subscription_renewal"
+          ].includes(payment.transactionType)
+        )
         .reduce((sum, payment) => sum + payment.platformEarning, 0);
       const netPlatformRevenue = allPayments
         .filter((payment) => payment.transactionType !== "wallet_topup")
