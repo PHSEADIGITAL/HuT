@@ -3,6 +3,7 @@
   const selectedCategory = typeof searchCategory === "string" ? searchCategory : "";
   const selectedLocation = typeof searchLocation === "string" ? searchLocation : "";
   const selectedNeighborhood = typeof searchNeighborhood === "string" ? searchNeighborhood : "";
+  const shouldShowQuickCategories = showQuickCategories !== false;
   const categoryOptions = Array.isArray(categories) ? categories : [];
   const quickCategories = categoryOptions.slice(0, 10);
   const buildCategoryHref = (categoryName = "") => {
@@ -77,15 +78,17 @@
     <button type="submit" class="marketplace-search-btn">Search</button>
   </form>
 
-  <nav class="marketplace-quick-nav">
-    <a class="<%= !selectedCategory ? "active" : "" %>" href="<%= buildCategoryHref("") %>">All</a>
-    <% quickCategories.forEach((categoryName) => { %>
-      <a
-        class="<%= selectedCategory === categoryName ? "active" : "" %>"
-        href="<%= buildCategoryHref(categoryName) %>"
-      >
-        <%= categoryName %>
-      </a>
-    <% }) %>
-  </nav>
+  <% if (shouldShowQuickCategories) { %>
+    <nav class="marketplace-quick-nav">
+      <a class="<%= !selectedCategory ? "active" : "" %>" href="<%= buildCategoryHref("") %>">All</a>
+      <% quickCategories.forEach((categoryName) => { %>
+        <a
+          class="<%= selectedCategory === categoryName ? "active" : "" %>"
+          href="<%= buildCategoryHref(categoryName) %>"
+        >
+          <%= categoryName %>
+        </a>
+      <% }) %>
+    </nav>
+  <% } %>
 </section>
