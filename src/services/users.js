@@ -33,7 +33,15 @@ function findUserById(data, userId) {
   return data.users.find((user) => user.id === userId);
 }
 
-function registerCustomer(data, { name, email, phone, password }) {
+function normalizeMarketplaceAccountType(value, fallback = "buyer") {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "buyer" || normalized === "seller") {
+    return normalized;
+  }
+  return fallback;
+}
+
+function registerCustomer(data, { name, email, phone, password, marketplaceAccountType }) {
   if (findUserByEmail(data, email)) {
     return { error: "An account with this email already exists." };
   }
@@ -44,6 +52,7 @@ function registerCustomer(data, { name, email, phone, password }) {
     name,
     email: email.toLowerCase(),
     phone,
+    marketplaceAccountType: normalizeMarketplaceAccountType(marketplaceAccountType, "buyer"),
     passwordHash: hashPassword(password),
     createdAt: new Date().toISOString()
   };
@@ -83,6 +92,7 @@ module.exports = {
   findUserByPhone,
   findUserByIdentifier,
   findUserById,
+  normalizeMarketplaceAccountType,
   registerCustomer,
   authenticateUser,
   canAccessHotel

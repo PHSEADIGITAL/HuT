@@ -11,24 +11,32 @@
     <p class="metric"><%= formatNaira(walletUser.walletBalance || 0) %></p>
   </article>
   <article class="card">
-    <h3>Contact Access Plan</h3>
-    <p class="metric"><%= formatNaira(marketplaceContactSubscriptionFeeNaira) %>/month</p>
-  </article>
-  <article class="card">
     <h3>Total Unlocks</h3>
     <p class="metric"><%= unlocks.length %></p>
   </article>
-  <article class="card">
-    <h3>Subscription Status</h3>
-    <p class="metric"><%= contactAccessState && contactAccessState.hasActive ? "Active" : "Inactive" %></p>
-    <p class="muted tiny">
-      <% if (contactAccessState && contactAccessState.hasActive) { %>
-        Expires: <%= contactAccessState.expiresAt %>
-      <% } else { %>
-        Activate to unlock seller contacts.
-      <% } %>
-    </p>
-  </article>
+  <% if (isBuyerMarketplaceUser) { %>
+    <article class="card">
+      <h3>Contact Access Plan</h3>
+      <p class="metric"><%= formatNaira(marketplaceContactSubscriptionFeeNaira) %>/month</p>
+    </article>
+    <article class="card">
+      <h3>Subscription Status</h3>
+      <p class="metric"><%= contactAccessState && contactAccessState.hasActive ? "Active" : "Inactive" %></p>
+      <p class="muted tiny">
+        <% if (contactAccessState && contactAccessState.hasActive) { %>
+          Expires: <%= contactAccessState.expiresAt %>
+        <% } else { %>
+          Activate to unlock seller contacts.
+        <% } %>
+      </p>
+    </article>
+  <% } else { %>
+    <article class="card">
+      <h3>Marketplace Account Type</h3>
+      <p class="metric"><%= String(marketplaceAccountType || "buyer").toUpperCase() %></p>
+      <p class="muted tiny">Seller accounts focus on listing and inventory tools.</p>
+    </article>
+  <% } %>
 </section>
 
 <section class="card">
@@ -56,33 +64,35 @@
   <% } %>
 </section>
 
-<section class="card">
-  <h2>Marketplace contact access</h2>
-  <p class="muted">
-    Unlock any seller contact with one monthly subscription.
-  </p>
-  <form class="grid-form compact" method="POST" action="/marketplace/contact-subscription/purchase">
-    <input type="hidden" name="returnTo" value="/wallet" />
-    <div class="full">
-      <label class="checkbox">
-        <input
-          type="checkbox"
-          name="autoRenew"
-          value="yes"
-          <%= contactAccessState && contactAccessState.autoRenew ? "checked" : "" %>
-        />
-        Enable auto-renew subscription
-      </label>
-    </div>
-    <div class="full">
-      <button type="submit">
-        <%= contactAccessState && contactAccessState.hasActive
-          ? "Update auto-renew setting"
-          : `Activate contact access (${formatNaira(marketplaceContactSubscriptionFeeNaira)}/month)` %>
-      </button>
-    </div>
-  </form>
-</section>
+<% if (isBuyerMarketplaceUser) { %>
+  <section class="card">
+    <h2>Marketplace contact access</h2>
+    <p class="muted">
+      Unlock any seller contact with one monthly subscription.
+    </p>
+    <form class="grid-form compact" method="POST" action="/marketplace/contact-subscription/purchase">
+      <input type="hidden" name="returnTo" value="/wallet" />
+      <div class="full">
+        <label class="checkbox">
+          <input
+            type="checkbox"
+            name="autoRenew"
+            value="yes"
+            <%= contactAccessState && contactAccessState.autoRenew ? "checked" : "" %>
+          />
+          Enable auto-renew subscription
+        </label>
+      </div>
+      <div class="full">
+        <button type="submit">
+          <%= contactAccessState && contactAccessState.hasActive
+            ? "Update auto-renew setting"
+            : `Activate contact access (${formatNaira(marketplaceContactSubscriptionFeeNaira)}/month)` %>
+        </button>
+      </div>
+    </form>
+  </section>
+<% } %>
 
 <section class="card">
   <h2>Pending top-ups</h2>

@@ -41,6 +41,7 @@ const {
   sanitizeUser,
   findUserById,
   findUserByIdentifier,
+  normalizeMarketplaceAccountType,
   registerCustomer,
   authenticateUser,
   canAccessHotel
@@ -1354,6 +1355,48 @@ function requireRoles(roles) {
   };
 }
 
+function currentMarketplaceAccountType(user) {
+  return normalizeMarketplaceAccountType(user?.marketplaceAccountType, "buyer");
+}
+
+function isMarketplaceSellerUser(user) {
+  return Boolean(user && user.role === "customer" && currentMarketplaceAccountType(user) === "seller");
+}
+
+function isMarketplaceBuyerUser(user) {
+  return Boolean(user && user.role === "customer" && currentMarketplaceAccountType(user) === "buyer");
+}
+
+function requireMarketplaceAccountType(allowedTypes, deniedMessage) {
+  return (request, response, next) => {
+    if (!request.currentUser) {
+      const nextUrl = encodeURIComponent(request.originalUrl || "/marketplace");
+      response.redirect(`/auth/login?next=${nextUrl}`);
+      return;
+    }
+
+    if (request.currentUser.role !== "customer") {
+      setFlash(request, "error", "Only customer accounts can use marketplace trading features.");
+      response.redirect("/marketplace");
+      return;
+    }
+
+    const accountType = currentMarketplaceAccountType(request.currentUser);
+    if (!allowedTypes.includes(accountType)) {
+      setFlash(
+        request,
+        "error",
+        deniedMessage ||
+          `This action requires a ${allowedTypes.join(" or ")} marketplace account.`
+      );
+      response.redirect("/marketplace");
+      return;
+    }
+
+    next();
+  };
+}
+
 function requireHotelAccess(request, response, next) {
   const hotelId = request.params.hotelId;
   if (canAccessHotel(request.currentUser, hotelId)) {
@@ -1504,6 +1547,10 @@ function createApp() {
     const phone = String(request.body.phone || "").trim();
     const password = String(request.body.password || "");
     const confirmPassword = String(request.body.confirmPassword || "");
+    const marketplaceAccountType = normalizeMarketplaceAccountType(
+      request.body.marketplaceAccountType,
+      "buyer"
+    );
 
     if (!name || !email || !phone || !password) {
       setFlash(request, "error", "All fields are required.");
@@ -1532,7 +1579,8 @@ function createApp() {
         name,
         email,
         phone,
-        password
+        password,
+        marketplaceAccountType
       });
     });
 
@@ -1751,6 +1799,30 @@ function createApp() {
   });
 
   app.get("/", async (request, response) => {
+    const stayQueryKeys = [
+      "destination",
+      "checkInDate",
+      "checkOutDate",
+      "adults",
+      "rooms",
+      "minPrice",
+      "maxPrice",
+      "sort"
+    ];
+    const hasStaySearchQuery = stayQueryKeys.some((key) => request.query[key] !== undefined);
+    if (hasStaySearchQuery) {
+      const query = new URLSearchParams(request.query || {}).toString();
+      response.redirect(`/stays${query ? `?${query}` : ""}`);
+      return;
+    }
+
+    const snapshot = await getSnapshot();
+    response.render("landing", {
+      platform: snapshot.platform
+    });
+  });
+
+  app.get("/stays", async (request, response) => {
     const checkInDate = request.query.checkInDate || isoDateOffset(1);
     const checkOutDate = request.query.checkOutDate || isoDateOffset(2);
     const destination = String(request.query.destination || "Bonny Island").trim();
@@ -2745,7 +2817,12 @@ function createApp() {
       )
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     const canTopUp = request.currentUser.role !== "hotel_admin";
-    const contactAccessState = getMarketplaceContactAccessState(snapshot, user.id);
+    const marketplaceAccountType =
+      user.role === "customer" ? currentMarketplaceAccountType(user) : "n/a";
+    const isBuyerMarketplaceUser = isMarketplaceBuyerUser(user);
+    const contactAccessState = isBuyerMarketplaceUser
+      ? getMarketplaceContactAccessState(snapshot, user.id)
+      : null;
 
     response.render("wallet", {
       walletUser: user,
@@ -2753,6 +2830,8 @@ function createApp() {
       unlocks,
       pendingTopups,
       canTopUp,
+      marketplaceAccountType,
+      isBuyerMarketplaceUser,
       contactAccessState,
       paymentProvider: getPaymentProvider(),
       collectionAccountAlias:
@@ -3069,19 +3148,29 @@ function createApp() {
     let limitState = null;
     let activePlanSubscriptions = [];
     let contactAccessState = null;
+    let marketplaceAccountType = null;
+    let isSellerMarketplaceUser = false;
+    let isBuyerMarketplaceUser = false;
     if (request.currentUser) {
       const currentUser = snapshot.users.find((user) => user.id === request.currentUser.id);
       if (currentUser) {
         ensureUserWallet(currentUser);
         walletBalance = currentUser.walletBalance;
-        limitState = canCreateMarketplaceListing(snapshot, currentUser.id);
-        activePlanSubscriptions = (limitState.activeListingSubscriptions || [])
-          .map((item) => ({
+        marketplaceAccountType =
+          currentUser.role === "customer" ? currentMarketplaceAccountType(currentUser) : "n/a";
+        isSellerMarketplaceUser = isMarketplaceSellerUser(currentUser);
+        isBuyerMarketplaceUser = isMarketplaceBuyerUser(currentUser);
+        if (isSellerMarketplaceUser) {
+          limitState = canCreateMarketplaceListing(snapshot, currentUser.id);
+          activePlanSubscriptions = (limitState.activeListingSubscriptions || []).map((item) => ({
             ...item,
             planName: getMarketplacePlanById(item.planId)?.name || item.planId,
             listingLimitDisplay: formatListingLimit(getListingLimitForSubscription(item))
           }));
-        contactAccessState = getMarketplaceContactAccessState(snapshot, currentUser.id);
+        }
+        if (isBuyerMarketplaceUser) {
+          contactAccessState = getMarketplaceContactAccessState(snapshot, currentUser.id);
+        }
       }
     }
 
@@ -3108,12 +3197,19 @@ function createApp() {
       limitState,
       activePlanSubscriptions,
       contactAccessState,
+      marketplaceAccountType,
+      isSellerMarketplaceUser,
+      isBuyerMarketplaceUser,
       marketplaceContactSubscriptionFeeNaira,
       platform: snapshot.platform
     });
   });
 
-  app.get("/marketplace/new", requireAuth, async (request, response) => {
+  app.get(
+    "/marketplace/new",
+    requireAuth,
+    requireMarketplaceAccountType(["seller"], "Only seller accounts can create listings."),
+    async (request, response) => {
     await refreshMarketplaceAutoRenewalsForUser(request.currentUser.id);
     const snapshot = await getSnapshot();
     const limitState = canCreateMarketplaceListing(snapshot, request.currentUser.id);
@@ -3128,7 +3224,6 @@ function createApp() {
         planName: getMarketplacePlanById(item.planId)?.name || item.planId,
         listingLimitDisplay: formatListingLimit(getListingLimitForSubscription(item))
       }));
-    const contactAccessState = getMarketplaceContactAccessState(snapshot, request.currentUser.id);
     response.render("marketplace-new", {
       limitState,
       categories: marketplaceCategories,
@@ -3140,29 +3235,25 @@ function createApp() {
       marketplacePlans,
       activePlanSubscriptions,
       walletBalance: user ? user.walletBalance : 0,
-      contactAccessState,
-      marketplaceContactSubscriptionFeeNaira,
       platform: snapshot.platform
     });
-  });
+    }
+  );
 
-  app.post("/marketplace/plans/purchase", requireAuth, async (request, response) => {
+  app.post(
+    "/marketplace/plans/purchase",
+    requireAuth,
+    requireMarketplaceAccountType(
+      ["seller"],
+      "Only seller accounts can subscribe to listing plans."
+    ),
+    async (request, response) => {
     const planId = sanitizeMarketplaceText(request.body.planId, "").toLowerCase();
     const autoRenew = String(request.body.autoRenew || "").toLowerCase() === "yes";
     const returnTo = safeNextPath(request.body.returnTo || "/marketplace/new");
     const plan = getMarketplacePlanById(planId);
     if (!plan || plan.id === "free") {
       setFlash(request, "error", "Selected listing plan does not exist.");
-      response.redirect(returnTo);
-      return;
-    }
-
-    if (request.currentUser.role === "hotel_admin") {
-      setFlash(
-        request,
-        "error",
-        "Hotel admins cannot purchase marketplace listing plans."
-      );
       response.redirect(returnTo);
       return;
     }
@@ -3285,16 +3376,19 @@ function createApp() {
       );
     }
     response.redirect(returnTo);
-  });
+    }
+  );
 
-  app.post("/marketplace/contact-subscription/purchase", requireAuth, async (request, response) => {
+  app.post(
+    "/marketplace/contact-subscription/purchase",
+    requireAuth,
+    requireMarketplaceAccountType(
+      ["buyer"],
+      "Only buyer accounts can activate contact access subscriptions."
+    ),
+    async (request, response) => {
     const autoRenew = String(request.body.autoRenew || "").toLowerCase() === "yes";
     const returnTo = safeNextPath(request.body.returnTo || "/marketplace");
-    if (request.currentUser.role === "hotel_admin") {
-      setFlash(request, "error", "Hotel admins cannot purchase marketplace contact subscriptions.");
-      response.redirect(returnTo);
-      return;
-    }
 
     const result = await withWriteLock(async (data) => {
       const user = data.users.find((item) => item.id === request.currentUser.id);
@@ -3398,11 +3492,13 @@ function createApp() {
       setFlash(request, "success", "Marketplace contact subscription activated successfully.");
     }
     response.redirect(returnTo);
-  });
+    }
+  );
 
   app.post(
     "/marketplace/listings",
     requireAuth,
+    requireMarketplaceAccountType(["seller"], "Only seller accounts can publish listings."),
     marketplaceUpload.array("images", 4),
     async (request, response) => {
       const title = sanitizeMarketplaceText(request.body.title);
@@ -3475,7 +3571,11 @@ function createApp() {
     }
   );
 
-  app.get("/marketplace/my-listings", requireAuth, async (request, response) => {
+  app.get(
+    "/marketplace/my-listings",
+    requireAuth,
+    requireMarketplaceAccountType(["seller"], "Only seller accounts can manage listings."),
+    async (request, response) => {
     await refreshMarketplaceAutoRenewalsForUser(request.currentUser.id);
     const snapshot = await getSnapshot();
     const listings = snapshot.marketplaceListings
@@ -3493,7 +3593,6 @@ function createApp() {
         planName: getMarketplacePlanById(item.planId)?.name || item.planId,
         listingLimitDisplay: formatListingLimit(getListingLimitForSubscription(item))
       }));
-    const contactAccessState = getMarketplaceContactAccessState(snapshot, request.currentUser.id);
     response.render("marketplace-my-listings", {
       listings,
       categories: marketplaceCategories,
@@ -3501,13 +3600,16 @@ function createApp() {
       marketplacePlans,
       activePlanSubscriptions,
       walletBalance: user ? user.walletBalance : 0,
-      contactAccessState,
-      marketplaceContactSubscriptionFeeNaira,
       platform: snapshot.platform
     });
-  });
+    }
+  );
 
-  app.post("/marketplace/listings/:listingId/mark-sold", requireAuth, async (request, response) => {
+  app.post(
+    "/marketplace/listings/:listingId/mark-sold",
+    requireAuth,
+    requireMarketplaceAccountType(["seller"], "Only seller accounts can update listing status."),
+    async (request, response) => {
     const listingId = request.params.listingId;
     const result = await withWriteLock(async (data) => {
       const listing = data.marketplaceListings.find((item) => item.id === listingId);
@@ -3528,7 +3630,8 @@ function createApp() {
       setFlash(request, "success", "Listing marked as sold.");
     }
     response.redirect("/marketplace/my-listings");
-  });
+    }
+  );
 
   app.get("/marketplace/listings/:listingId", async (request, response) => {
     if (request.currentUser) {
@@ -3552,12 +3655,15 @@ function createApp() {
     const isSeller = request.currentUser && request.currentUser.id === listing.sellerUserId;
     const isPlatformAdmin =
       request.currentUser && request.currentUser.role === "platform_admin";
+    const buyerMarketplaceAccount =
+      request.currentUser && isMarketplaceBuyerUser(request.currentUser);
     const hasUnlocked =
       request.currentUser &&
       hasUnlockedSellerContact(snapshot, listing.id, request.currentUser.id);
     const canViewContact = Boolean(isSeller || isPlatformAdmin || hasUnlocked);
     const canUnlock = Boolean(
       request.currentUser &&
+      buyerMarketplaceAccount &&
       !isSeller &&
       !isPlatformAdmin &&
       !hasUnlocked &&
@@ -3571,7 +3677,9 @@ function createApp() {
       if (currentUser) {
         ensureUserWallet(currentUser);
         walletBalance = currentUser.walletBalance;
-        contactAccessState = getMarketplaceContactAccessState(snapshot, currentUser.id);
+        if (isMarketplaceBuyerUser(currentUser)) {
+          contactAccessState = getMarketplaceContactAccessState(snapshot, currentUser.id);
+        }
       }
     }
     const canUnlockWithSubscription = Boolean(
@@ -3598,6 +3706,7 @@ function createApp() {
       sellerRating,
       canViewContact,
       canUnlock,
+      isBuyerMarketplaceUser: Boolean(buyerMarketplaceAccount),
       canUnlockWithSubscription,
       needsContactSubscription,
       walletBalance,
@@ -3720,6 +3829,10 @@ function createApp() {
   app.post(
     "/marketplace/listings/:listingId/unlock-contact",
     requireAuth,
+    requireMarketplaceAccountType(
+      ["buyer"],
+      "Only buyer accounts can unlock seller contact details."
+    ),
     async (request, response) => {
       const listingId = request.params.listingId;
       const result = await withWriteLock(async (data) => {

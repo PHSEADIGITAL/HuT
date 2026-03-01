@@ -430,6 +430,51 @@ th {
   align-items: center;
 }
 
+.landing-choice-hero h1 {
+  margin: 0.15rem 0 0.45rem;
+  font-size: clamp(1.4rem, 3vw, 2.2rem);
+}
+
+.landing-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.landing-choice-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.landing-choice-card h2 {
+  margin: 0.1rem 0;
+}
+
+.account-type-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.6rem;
+}
+
+.account-type-option {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.55rem 0.62rem;
+  background: #f8fbff;
+}
+
+.account-type-option input[type="radio"] {
+  width: 1rem;
+  margin-right: 0.4rem;
+}
+
+.account-type-option strong {
+  display: block;
+  color: #1f2937;
+}
+
 .review-list {
   display: flex;
   flex-direction: column;
@@ -1640,6 +1685,10 @@ body.marketplace-mode .card {
 
   .landing-switcher-actions {
     width: 100%;
+  }
+
+  .landing-choice-grid {
+    grid-template-columns: 1fr;
   }
 
   .booking-search-bar {

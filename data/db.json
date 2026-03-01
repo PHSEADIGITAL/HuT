@@ -183,6 +183,7 @@
       "name": "Demo Customer",
       "email": "customer@hut.app",
       "phone": "+2348030000201",
+      "marketplaceAccountType": "seller",
       "walletBalance": 1500,
       "passwordHash": "scrypt$7e07c8e286e05ee71976e05286393612$211ebd6ce6cb6d83e7a7420abd76e0d47df326789ac57860ff0fca0d5b6d873ef5d683571f1ece8cb8dba41bb2bff710a1347324aa49464980de7e56fdd3d4e4",
       "createdAt": "2026-02-03T09:45:00.000Z"
