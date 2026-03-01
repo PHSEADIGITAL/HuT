@@ -1,11 +1,13 @@
 import { API_BASE_URL } from "../config";
 
 export async function apiRequest(path, options = {}) {
-  const { method = "GET", token = "", body } = options;
+  const { method = "GET", token = "", body, headers: customHeaders = {} } = options;
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
   const headers = {
-    Accept: "application/json"
+    Accept: "application/json",
+    ...customHeaders
   };
-  if (body !== undefined) {
+  if (body !== undefined && !isFormData && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
   }
   if (token) {
@@ -15,7 +17,7 @@ export async function apiRequest(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method,
     headers,
-    body: body === undefined ? undefined : JSON.stringify(body)
+    body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body)
   });
 
   let payload = null;

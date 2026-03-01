@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View
 } from "react-native";
 import { apiRequest } from "../api/client";
@@ -23,6 +24,11 @@ export default function MarketplaceDetailScreen({ navigation, route }) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [detail, setDetail] = useState(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewMessage, setReviewMessage] = useState("");
+  const [reviewError, setReviewError] = useState("");
 
   const loadDetail = useCallback(async () => {
     setLoading(true);
@@ -32,6 +38,10 @@ export default function MarketplaceDetailScreen({ navigation, route }) {
         token: isAuthenticated ? token : ""
       });
       setDetail(payload);
+      if (payload.userSellerReview) {
+        setReviewRating(payload.userSellerReview.rating || 5);
+        setReviewComment(payload.userSellerReview.comment || "");
+      }
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -88,6 +98,41 @@ export default function MarketplaceDetailScreen({ navigation, route }) {
       setError(requestError.message);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function submitSellerReview() {
+    if (!isAuthenticated) {
+      navigation.navigate("Login");
+      return;
+    }
+    const sellerUserId = detail?.listing?.sellerUserId;
+    if (!sellerUserId) {
+      setReviewError("Seller profile could not be loaded.");
+      return;
+    }
+    if (!reviewComment.trim()) {
+      setReviewError("Write a review comment before submitting.");
+      return;
+    }
+    setReviewBusy(true);
+    setReviewError("");
+    setReviewMessage("");
+    try {
+      await apiRequest(`/api/marketplace/sellers/${encodeURIComponent(sellerUserId)}/reviews`, {
+        method: "POST",
+        token,
+        body: {
+          rating: reviewRating,
+          comment: reviewComment.trim()
+        }
+      });
+      setReviewMessage("Seller review submitted.");
+      await loadDetail();
+    } catch (requestError) {
+      setReviewError(requestError.message);
+    } finally {
+      setReviewBusy(false);
     }
   }
 
@@ -150,6 +195,69 @@ export default function MarketplaceDetailScreen({ navigation, route }) {
             {canViewContact ? listing.sellerPhone || "Unavailable" : listing.sellerPhoneMasked}
           </Text>
         </Text>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Seller reviews</Text>
+        {(detail.sellerReviews || []).length ? (
+          (detail.sellerReviews || []).slice(0, 6).map((review) => (
+            <View key={review.id} style={styles.reviewCard}>
+              <Text style={styles.reviewHeader}>
+                {review.reviewerName} • {review.rating}/5
+              </Text>
+              <Text style={styles.reviewComment}>{review.comment}</Text>
+            </View>
+          ))
+        ) : (
+          <Text style={styles.metaText}>No reviews yet for this seller.</Text>
+        )}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Leave seller review</Text>
+        {!isAuthenticated ? (
+          <Text style={styles.metaText}>Sign in to review this seller.</Text>
+        ) : (
+          <>
+            <View style={styles.ratingRow}>
+              {[1, 2, 3, 4, 5].map((rating) => (
+                <Pressable
+                  key={rating}
+                  style={[styles.ratingChip, reviewRating === rating && styles.ratingChipActive]}
+                  onPress={() => setReviewRating(rating)}
+                >
+                  <Text
+                    style={[
+                      styles.ratingChipText,
+                      reviewRating === rating && styles.ratingChipTextActive
+                    ]}
+                  >
+                    {rating}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <TextInput
+              style={[styles.textInput, styles.textarea]}
+              multiline
+              numberOfLines={4}
+              placeholder="How was your experience with this seller?"
+              value={reviewComment}
+              onChangeText={setReviewComment}
+            />
+            {reviewError ? <Text style={styles.error}>{reviewError}</Text> : null}
+            {reviewMessage ? <Text style={styles.success}>{reviewMessage}</Text> : null}
+            <Pressable
+              style={styles.primaryButton}
+              onPress={submitSellerReview}
+              disabled={reviewBusy}
+            >
+              <Text style={styles.primaryButtonText}>
+                {reviewBusy ? "Submitting..." : "Submit seller review"}
+              </Text>
+            </Pressable>
+          </>
+        )}
       </View>
 
       {success ? <Text style={styles.success}>{success}</Text> : null}
@@ -292,5 +400,58 @@ const styles = StyleSheet.create({
   },
   noticeText: {
     color: "#475569"
+  },
+  reviewCard: {
+    borderWidth: 1,
+    borderColor: "#d6e1f2",
+    borderRadius: 8,
+    padding: 8,
+    backgroundColor: "#fff"
+  },
+  reviewHeader: {
+    fontWeight: "700",
+    color: "#1f2937",
+    fontSize: 12
+  },
+  reviewComment: {
+    marginTop: 4,
+    color: "#475569",
+    fontSize: 12
+  },
+  ratingRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  ratingChip: {
+    minWidth: 40,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#d6e1f2",
+    alignItems: "center"
+  },
+  ratingChipActive: {
+    borderColor: "#3665f3",
+    backgroundColor: "#3665f3"
+  },
+  ratingChipText: {
+    color: "#1f2937",
+    fontWeight: "700"
+  },
+  ratingChipTextActive: {
+    color: "#fff"
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: "#d6e1f2",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    backgroundColor: "#fff"
+  },
+  textarea: {
+    minHeight: 90,
+    textAlignVertical: "top"
   }
 });

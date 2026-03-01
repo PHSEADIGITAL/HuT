@@ -60,6 +60,16 @@ function toInteger(value, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function toBooleanInput(value) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  return ["1", "true", "yes", "on"].includes(normalized);
+}
+
 function toSlug(value) {
   return String(value || "")
     .toLowerCase()
@@ -1483,6 +1493,40 @@ function requireApiMarketplaceAccountType(allowedTypes, deniedMessage) {
   };
 }
 
+function requireApiRoles(roles, deniedMessage = "You do not have permission to access this resource.") {
+  return (request, response, next) => {
+    if (!request.currentUser) {
+      apiError(response, 401, "Authentication required.");
+      return;
+    }
+    if (!roles.includes(request.currentUser.role)) {
+      apiError(response, 403, deniedMessage);
+      return;
+    }
+    next();
+  };
+}
+
+function requireApiHotelAccess(request, response, next) {
+  const hotelId = request.params.hotelId;
+  if (!request.currentUser) {
+    apiError(response, 401, "Authentication required.");
+    return;
+  }
+  if (!canAccessHotel(request.currentUser, hotelId)) {
+    apiError(response, 403, "You do not have access to this hotel dashboard.");
+    return;
+  }
+  next();
+}
+
+function buildAbsoluteUrl(request, resourcePath) {
+  const normalizedPath = String(resourcePath || "").startsWith("/")
+    ? String(resourcePath || "")
+    : `/${String(resourcePath || "")}`;
+  return `${getCallbackBaseUrl(request)}${normalizedPath}`;
+}
+
 function serializeUserForApi(user) {
   if (!user) {
     return null;
@@ -1497,6 +1541,160 @@ function serializeUserForApi(user) {
     walletBalance: Number.isFinite(safeUser.walletBalance) ? safeUser.walletBalance : 0,
     marketplaceAccountType: currentMarketplaceAccountType(safeUser),
     hotelIds: Array.isArray(safeUser.hotelIds) ? safeUser.hotelIds : []
+  };
+}
+
+function serializeBookingForApi(data, booking) {
+  if (!booking) {
+    return null;
+  }
+  const hotel = data.hotels.find((item) => item.id === booking.hotelId);
+  const room = data.rooms.find((item) => item.id === booking.roomId);
+  const pendingPaymentSession = data.paymentSessions.find(
+    (session) =>
+      session.bookingId === booking.id &&
+      (session.status === "pending" || session.status === "pending_verification")
+  );
+  const payment = [...data.payments]
+    .filter((item) => item.bookingId === booking.id)
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0];
+
+  return {
+    id: booking.id,
+    referenceNumber: booking.referenceNumber || null,
+    hotelId: booking.hotelId,
+    roomId: booking.roomId,
+    roomCategory: booking.roomCategory || room?.category || "",
+    customerUserId: booking.customerUserId,
+    customerName: booking.customerName,
+    email: booking.email,
+    phone: booking.phone,
+    emergencyContactName: booking.emergencyContactName,
+    emergencyContactPhone: booking.emergencyContactPhone,
+    checkInDate: booking.checkInDate,
+    checkOutDate: booking.checkOutDate,
+    nights: booking.nights,
+    guests: booking.guests,
+    pickupRequested: Boolean(booking.pickupRequested),
+    specialRequest: booking.specialRequest || "",
+    status: booking.status,
+    paymentStatus: booking.paymentStatus,
+    paymentReference: booking.paymentReference || null,
+    paymentProvider: booking.paymentProvider || null,
+    paymentError: booking.paymentError || null,
+    createdAt: booking.createdAt,
+    paidAt: booking.paidAt || null,
+    cancelledAt: booking.cancelledAt || null,
+    refund: booking.refund || null,
+    pricing: booking.pricing || null,
+    fraudScore: Number.isFinite(booking.fraudScore) ? booking.fraudScore : 0,
+    fraudFlags: Array.isArray(booking.fraudFlags) ? booking.fraudFlags : [],
+    cancellationPolicy: booking.cancellationPolicy || "flexible",
+    hotel: hotel
+      ? {
+          id: hotel.id,
+          name: hotel.name,
+          location: hotel.location,
+          address: hotel.address || ""
+        }
+      : null,
+    room: room
+      ? {
+          id: room.id,
+          category: room.category,
+          pricePerNight: room.pricePerNight
+        }
+      : null,
+    payment: payment
+      ? {
+          transactionRef: payment.transactionRef,
+          paymentProvider: payment.paymentProvider,
+          paymentStatus: payment.paymentStatus,
+          grossAmount: payment.grossAmount,
+          platformEarning: payment.platformEarning,
+          hotelPayout: payment.hotelPayout,
+          createdAt: payment.createdAt
+        }
+      : null,
+    pendingPaymentSession: pendingPaymentSession
+      ? {
+          reference: pendingPaymentSession.reference,
+          provider: pendingPaymentSession.provider,
+          status: pendingPaymentSession.status,
+          paymentUrl: pendingPaymentSession.paymentUrl || null
+        }
+      : null
+  };
+}
+
+function serializeWalletTransactionForApi(transaction) {
+  if (!transaction) {
+    return null;
+  }
+  return {
+    id: transaction.id,
+    type: transaction.type,
+    direction: transaction.direction,
+    amount: transaction.amount,
+    signedAmount: transaction.signedAmount,
+    description: transaction.description,
+    reference: transaction.reference,
+    relatedListingId: transaction.relatedListingId || null,
+    relatedPaymentId: transaction.relatedPaymentId || null,
+    balanceAfter: transaction.balanceAfter,
+    createdAt: transaction.createdAt
+  };
+}
+
+function serializeWalletTopupIntentForApi(intent) {
+  if (!intent) {
+    return null;
+  }
+  return {
+    id: intent.id,
+    amount: intent.amount,
+    provider: intent.provider,
+    reference: intent.reference,
+    paymentUrl: intent.paymentUrl || null,
+    status: intent.status,
+    createdAt: intent.createdAt,
+    updatedAt: intent.updatedAt,
+    creditedAt: intent.creditedAt || null,
+    externalId: intent.externalId || null
+  };
+}
+
+function serializeMarketplaceSellerReviewForApi(data, review) {
+  if (!review) {
+    return null;
+  }
+  const reviewer = data.users.find((item) => item.id === review.reviewerUserId);
+  return {
+    id: review.id,
+    sellerUserId: review.sellerUserId,
+    reviewerUserId: review.reviewerUserId,
+    reviewerName: reviewer ? reviewer.name : "Marketplace user",
+    rating: normalizeRating(review.rating, 0),
+    comment: review.comment,
+    createdAt: review.createdAt,
+    updatedAt: review.updatedAt || null
+  };
+}
+
+function serializeHotelReviewForApi(data, review) {
+  if (!review) {
+    return null;
+  }
+  const reviewer = data.users.find((item) => item.id === review.reviewerUserId);
+  return {
+    id: review.id,
+    hotelId: review.hotelId,
+    reviewerUserId: review.reviewerUserId,
+    reviewerName: reviewer ? reviewer.name : "Guest user",
+    rating: normalizeRating(review.rating, 0),
+    comment: review.comment,
+    createdAt: review.createdAt,
+    updatedAt: review.updatedAt || null
   };
 }
 
@@ -5038,6 +5236,14 @@ function createApp() {
       ...room,
       availability: availabilityByRoom.find((item) => item.roomId === room.id)
     }));
+    const hotelReviews = (snapshot.hotelReviews || [])
+      .filter((review) => review.hotelId === hotel.id)
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+      .slice(0, 40)
+      .map((review) => serializeHotelReviewForApi(snapshot, review));
+    const userHotelReview = request.currentUser
+      ? hotelReviews.find((review) => review.reviewerUserId === request.currentUser.id) || null
+      : null;
 
     response.json({
       ok: true,
@@ -5073,9 +5279,930 @@ function createApp() {
         roomSizeSqm: room.roomSizeSqm,
         availability: room.availability || null
       })),
-      rating: hotelReviewStats
+      rating: hotelReviewStats,
+      reviews: hotelReviews,
+      userReview: userHotelReview,
+      canReview: Boolean(request.currentUser)
     });
   });
+
+  app.post("/api/bookings", requireApiAuth, async (request, response) => {
+    if (request.currentUser.role !== "customer") {
+      apiError(response, 403, "Only customer accounts can place bookings.");
+      return;
+    }
+
+    const {
+      hotelId,
+      roomId,
+      emergencyContactName,
+      emergencyContactPhone,
+      checkInDate,
+      checkOutDate,
+      guests,
+      pickupRequested,
+      specialRequest
+    } = request.body;
+    const callbackBaseUrl = getCallbackBaseUrl(request);
+    const baseInput = {
+      hotelId: String(hotelId || ""),
+      roomId: String(roomId || ""),
+      emergencyContactName: String(emergencyContactName || "").trim(),
+      emergencyContactPhone: String(emergencyContactPhone || "").trim(),
+      checkInDate: String(checkInDate || ""),
+      checkOutDate: String(checkOutDate || ""),
+      guests: Math.max(1, toNumber(guests, 1)),
+      pickupRequested: toBooleanInput(pickupRequested),
+      specialRequest: String(specialRequest || "").trim()
+    };
+
+    if (
+      !baseInput.hotelId ||
+      !baseInput.roomId ||
+      !baseInput.emergencyContactName ||
+      !baseInput.emergencyContactPhone
+    ) {
+      apiError(response, 400, "Missing required booking information.");
+      return;
+    }
+
+    const dateValidation = validateStayDates(baseInput.checkInDate, baseInput.checkOutDate);
+    if (!dateValidation.valid) {
+      apiError(response, 400, dateValidation.reason);
+      return;
+    }
+
+    const result = await withWriteLock(async (data) => {
+      const user = findUserById(data, request.currentUser.id);
+      if (!user) {
+        return { error: "Your account session is no longer valid. Please log in again." };
+      }
+
+      const hotel = data.hotels.find((item) => item.id === baseInput.hotelId);
+      const room = data.rooms.find(
+        (item) => item.id === baseInput.roomId && item.hotelId === baseInput.hotelId
+      );
+      if (!hotel || !room) {
+        return { error: "Selected hotel/room no longer exists." };
+      }
+
+      const availabilityCheck = assertRoomAvailable(
+        data,
+        room,
+        baseInput.checkInDate,
+        baseInput.checkOutDate
+      );
+      if (!availabilityCheck.ok) {
+        return { error: availabilityCheck.reason };
+      }
+
+      const pricing = calculateBookingPrice({
+        roomPricePerNight: room.pricePerNight,
+        nights: dateValidation.nights,
+        commissionRate: hotel.commissionRate || data.platform.defaultCommissionRate,
+        pickupRequested: baseInput.pickupRequested,
+        pickupFee: hotel.pickupFee
+      });
+
+      const fraudAssessment = assessFraudRisk({
+        data,
+        bookingInput: {
+          ...baseInput,
+          email: user.email,
+          phone: user.phone
+        },
+        amount: pricing.totalPaid
+      });
+
+      if (fraudAssessment.blocked) {
+        data.fraudEvents.push({
+          id: randomUUID(),
+          hotelId: hotel.id,
+          email: user.email,
+          phone: user.phone,
+          score: fraudAssessment.score,
+          flags: fraudAssessment.flags,
+          action: "blocked",
+          createdAt: new Date().toISOString()
+        });
+
+        return {
+          error:
+            "Booking blocked by fraud protection. Contact support on WhatsApp for manual review."
+        };
+      }
+
+      const booking = {
+        id: randomUUID(),
+        referenceNumber: createBookingReference(data.bookings),
+        hotelId: hotel.id,
+        roomId: room.id,
+        roomCategory: room.category,
+        customerUserId: user.id,
+        customerName: user.name,
+        email: user.email,
+        phone: user.phone,
+        emergencyContactName: baseInput.emergencyContactName,
+        emergencyContactPhone: baseInput.emergencyContactPhone,
+        checkInDate: baseInput.checkInDate,
+        checkOutDate: baseInput.checkOutDate,
+        nights: dateValidation.nights,
+        guests: baseInput.guests,
+        pickupRequested: baseInput.pickupRequested,
+        specialRequest: baseInput.specialRequest,
+        pricing,
+        fraudScore: fraudAssessment.score,
+        fraudFlags: fraudAssessment.flags,
+        status: "pending_payment",
+        paymentStatus: "pending",
+        cancellationPolicy: hotel.cancellationPolicy,
+        createdAt: new Date().toISOString()
+      };
+      data.bookings.push(booking);
+
+      if (fraudAssessment.reviewNeeded) {
+        data.fraudEvents.push({
+          id: randomUUID(),
+          hotelId: hotel.id,
+          email: booking.email,
+          phone: booking.phone,
+          score: booking.fraudScore,
+          flags: booking.fraudFlags,
+          action: "review",
+          createdAt: new Date().toISOString()
+        });
+      }
+
+      try {
+        const paymentInit = await initializePayment({
+          bookingId: booking.id,
+          amountNaira: booking.pricing.totalPaid,
+          customerName: booking.customerName,
+          email: booking.email,
+          phone: booking.phone,
+          callbackBaseUrl,
+          splitConfig: buildHotelSplitConfig(hotel, booking.pricing)
+        });
+
+        data.paymentSessions.push({
+          id: randomUUID(),
+          bookingId: booking.id,
+          walletTopupId: null,
+          sessionType: "booking",
+          provider: paymentInit.provider,
+          reference: paymentInit.reference,
+          paymentUrl: paymentInit.paymentUrl || null,
+          status: paymentInit.status === "paid" ? "paid" : "pending_verification",
+          createdAt: new Date().toISOString()
+        });
+
+        if (paymentInit.status === "paid") {
+          await markBookingAsPaid({
+            data,
+            booking,
+            hotel,
+            paymentProvider: paymentInit.provider,
+            transactionReference: paymentInit.reference,
+            externalId: paymentInit.reference
+          });
+          return {
+            bookingId: booking.id,
+            status: "paid"
+          };
+        }
+
+        booking.paymentReference = paymentInit.reference;
+        booking.paymentProvider = paymentInit.provider;
+        booking.paymentStatus = "pending_verification";
+        return {
+          bookingId: booking.id,
+          status: "pending_verification",
+          paymentUrl: paymentInit.paymentUrl || null
+        };
+      } catch (_error) {
+        booking.status = "payment_failed";
+        booking.paymentStatus = "failed";
+        booking.paymentError = "Unable to initialize payment. Please try again later.";
+        return {
+          error: "Unable to initialize payment. Please try again later."
+        };
+      }
+    });
+
+    if (result.error) {
+      apiError(response, 400, result.error);
+      return;
+    }
+
+    const snapshot = await getSnapshot();
+    const booking = snapshot.bookings.find((item) => item.id === result.bookingId);
+    response.status(201).json({
+      ok: true,
+      booking: serializeBookingForApi(snapshot, booking),
+      checkout: {
+        status: result.status,
+        paymentUrl: result.paymentUrl || null
+      }
+    });
+  });
+
+  app.get("/api/bookings/my", requireApiAuth, async (request, response) => {
+    if (request.currentUser.role !== "customer") {
+      apiError(response, 403, "Only customer accounts can view customer bookings.");
+      return;
+    }
+    const snapshot = await getSnapshot();
+    const bookings = snapshot.bookings
+      .filter((booking) => booking.customerUserId === request.currentUser.id)
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+      .map((booking) => serializeBookingForApi(snapshot, booking));
+    response.json({
+      ok: true,
+      bookings
+    });
+  });
+
+  app.get("/api/bookings/:bookingId", requireApiAuth, async (request, response) => {
+    const snapshot = await getSnapshot();
+    const booking = snapshot.bookings.find((item) => item.id === request.params.bookingId);
+    if (!booking || !canViewBooking(request.currentUser, booking)) {
+      apiError(response, 404, "Booking not found.");
+      return;
+    }
+    response.json({
+      ok: true,
+      booking: serializeBookingForApi(snapshot, booking)
+    });
+  });
+
+  app.post("/api/bookings/:bookingId/cancel", requireApiAuth, async (request, response) => {
+    if (request.currentUser.role !== "customer") {
+      apiError(response, 403, "Only customer accounts can cancel customer bookings.");
+      return;
+    }
+    const bookingId = request.params.bookingId;
+    const result = await withWriteLock(async (data) => {
+      const booking = data.bookings.find((item) => item.id === bookingId);
+      if (!booking || booking.customerUserId !== request.currentUser.id) {
+        return { error: "Booking not found." };
+      }
+
+      if (booking.status === "cancelled") {
+        return { error: "Booking has already been cancelled." };
+      }
+
+      if (booking.status !== "confirmed") {
+        return { error: "Only confirmed bookings can be cancelled online." };
+      }
+
+      const hotel = data.hotels.find((item) => item.id === booking.hotelId);
+      const cancelledAt = new Date().toISOString();
+      const refund = calculateRefund({
+        policyType: hotel.cancellationPolicy,
+        cancelledAt,
+        checkInDate: booking.checkInDate,
+        totalPaid: booking.pricing.totalPaid,
+        pickupTotal: booking.pricing.pickupTotal,
+        pickupRequested: booking.pickupRequested
+      });
+
+      booking.status = "cancelled";
+      booking.paymentStatus =
+        refund.refundTotal >= booking.pricing.totalPaid
+          ? "refunded"
+          : refund.refundTotal > 0
+          ? "partially_refunded"
+          : "not_refundable";
+      booking.cancelledAt = cancelledAt;
+      booking.refund = refund;
+
+      data.payments.push(
+        createPaymentRecord({
+          id: randomUUID(),
+          bookingId: booking.id,
+          hotelId: booking.hotelId,
+          userId: booking.customerUserId || null,
+          listingId: null,
+          transactionRef: `HUT-RFND-${Date.now()}`,
+          transactionType: "refund",
+          paymentProvider: booking.paymentProvider || "n/a",
+          paymentExternalId: booking.paymentExternalId || booking.paymentReference || "n/a",
+          grossAmount: -refund.refundTotal,
+          hotelPayout: -Math.min(booking.pricing.hotelPayout, refund.refundTotal),
+          platformEarning: -Math.max(0, refund.refundTotal - booking.pricing.hotelPayout),
+          commissionRate: booking.pricing.commissionRateApplied,
+          hotelBankAccount: hotel.bankAccount,
+          platformBankAccount: data.platform.bankAccount,
+          paymentStatus: "paid",
+          settled: true,
+          settledAt: cancelledAt,
+          createdAt: cancelledAt
+        })
+      );
+
+      await sendCancellationAcknowledgements({
+        data,
+        booking,
+        hotel,
+        refund
+      });
+
+      broadcast("availability_update", {
+        hotelId: booking.hotelId,
+        bookingId: booking.id,
+        updatedAt: new Date().toISOString()
+      });
+
+      return { ok: true };
+    });
+
+    if (result.error) {
+      apiError(response, 400, result.error);
+      return;
+    }
+    const snapshot = await getSnapshot();
+    const booking = snapshot.bookings.find((item) => item.id === bookingId);
+    response.json({
+      ok: true,
+      message: "Booking cancelled successfully.",
+      booking: serializeBookingForApi(snapshot, booking)
+    });
+  });
+
+  app.get("/api/wallet", requireApiAuth, async (request, response) => {
+    await refreshMarketplaceAutoRenewalsForUser(request.currentUser.id);
+    const snapshot = await getSnapshot();
+    const user = snapshot.users.find((item) => item.id === request.currentUser.id);
+    if (!user) {
+      apiError(response, 404, "Wallet user not found.");
+      return;
+    }
+
+    ensureUserWallet(user);
+    const transactions = snapshot.walletTransactions
+      .filter((entry) => entry.userId === user.id)
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+      .map((entry) => serializeWalletTransactionForApi(entry));
+    const unlocks = snapshot.marketplaceUnlocks
+      .filter((unlock) => unlock.buyerUserId === user.id)
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    const pendingTopups = snapshot.walletTopupIntents
+      .filter(
+        (intent) =>
+          intent.userId === user.id && intent.status !== "credited" && intent.status !== "failed"
+      )
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+      .map((intent) => serializeWalletTopupIntentForApi(intent));
+    const canTopUp = user.role !== "hotel_admin";
+    const marketplaceAccountType =
+      user.role === "customer" ? currentMarketplaceAccountType(user) : "n/a";
+    const isBuyerMarketplaceUser = isMarketplaceBuyerUser(user);
+    const contactAccessState = isBuyerMarketplaceUser
+      ? getMarketplaceContactAccessState(snapshot, user.id)
+      : null;
+
+    response.json({
+      ok: true,
+      user: serializeUserForApi(user),
+      walletBalance: user.walletBalance,
+      canTopUp,
+      marketplaceAccountType,
+      isBuyerMarketplaceUser,
+      contactAccessState,
+      transactions,
+      unlocks,
+      pendingTopups,
+      paymentProvider: getPaymentProvider(),
+      collectionAccountAlias:
+        snapshot.platform.collectionAccountAlias || "HuT Business Collection Account",
+      marketplaceContactSubscriptionFeeNaira
+    });
+  });
+
+  app.post("/api/wallet/topup", requireApiAuth, async (request, response) => {
+    if (request.currentUser.role === "hotel_admin") {
+      apiError(response, 403, "Hotel admins cannot credit virtual wallets.");
+      return;
+    }
+
+    const amount = Math.round(toNumber(request.body.amount, 0));
+    const provider = getPaymentProvider();
+    if (amount <= 0) {
+      apiError(response, 400, "Top-up amount must be greater than zero.");
+      return;
+    }
+    if (nodeEnv === "production" && provider === "mock") {
+      apiError(response, 400, "Mock provider is blocked in production. Configure Paystack or Flutterwave.");
+      return;
+    }
+
+    const result = await withWriteLock(async (data) => {
+      const user = data.users.find((item) => item.id === request.currentUser.id);
+      if (!user) {
+        return { error: "Wallet user not found." };
+      }
+      ensureUserWallet(user);
+
+      // Legacy trust-based credit remains only for non-production safety/testing.
+      if (provider === "mock" && canTrustManualWalletTopup()) {
+        const paymentId = randomUUID();
+        const manualReference = `MANUAL-${Date.now()}`;
+        const walletEntryResult = createWalletEntry(data, {
+          userId: user.id,
+          type: "wallet_topup",
+          direction: "credit",
+          amount,
+          description: "Wallet top-up via non-production trusted flow",
+          reference: manualReference,
+          relatedPaymentId: paymentId
+        });
+        if (walletEntryResult.error) {
+          return { error: walletEntryResult.error };
+        }
+
+        data.payments.push(
+          createPaymentRecord({
+            id: paymentId,
+            bookingId: null,
+            hotelId: null,
+            userId: user.id,
+            listingId: null,
+            transactionRef: manualReference,
+            transactionType: "wallet_topup",
+            paymentProvider: "mock",
+            paymentExternalId: manualReference,
+            grossAmount: amount,
+            hotelPayout: 0,
+            platformEarning: 0,
+            commissionRate: 0,
+            hotelBankAccount: null,
+            platformBankAccount: data.platform.bankAccount,
+            paymentStatus: "paid",
+            settled: true,
+            settledAt: new Date().toISOString(),
+            createdAt: new Date().toISOString()
+          })
+        );
+
+        return {
+          credited: true,
+          balanceAfter: walletEntryResult.balanceAfter
+        };
+      }
+
+      const intentId = randomUUID();
+      try {
+        const paymentInit = await initializeWalletTopup({
+          intentId,
+          amountNaira: amount,
+          customerName: user.name,
+          email: user.email,
+          phone: user.phone,
+          callbackBaseUrl: getCallbackBaseUrl(request)
+        });
+        const nowIso = new Date().toISOString();
+        const paymentRecordId = randomUUID();
+        data.walletTopupIntents.push({
+          id: intentId,
+          userId: user.id,
+          amount,
+          provider: paymentInit.provider,
+          reference: paymentInit.reference,
+          paymentUrl: paymentInit.paymentUrl || null,
+          status: "pending_verification",
+          paymentRecordId,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+          creditedAt: null
+        });
+
+        data.paymentSessions.push({
+          id: randomUUID(),
+          bookingId: null,
+          walletTopupId: intentId,
+          sessionType: "wallet_topup",
+          provider: paymentInit.provider,
+          reference: paymentInit.reference,
+          paymentUrl: paymentInit.paymentUrl || null,
+          status: paymentInit.status === "paid" ? "paid" : "pending_verification",
+          createdAt: nowIso
+        });
+
+        data.payments.push(
+          createPaymentRecord({
+            id: paymentRecordId,
+            bookingId: null,
+            hotelId: null,
+            userId: user.id,
+            listingId: null,
+            transactionRef: paymentInit.reference,
+            transactionType: "wallet_topup",
+            paymentProvider: paymentInit.provider,
+            paymentExternalId: paymentInit.reference,
+            grossAmount: amount,
+            hotelPayout: 0,
+            platformEarning: 0,
+            commissionRate: 0,
+            hotelBankAccount: null,
+            platformBankAccount: data.platform.bankAccount,
+            paymentStatus: paymentInit.status === "paid" ? "paid" : "pending_verification",
+            settled: paymentInit.status === "paid",
+            settledAt: paymentInit.status === "paid" ? nowIso : null,
+            createdAt: nowIso
+          })
+        );
+
+        if (paymentInit.status === "paid") {
+          const topupResult = applyWalletTopupCredit({
+            data,
+            intent: data.walletTopupIntents.find((intent) => intent.id === intentId),
+            transactionReference: paymentInit.reference,
+            externalId: paymentInit.reference,
+            provider: paymentInit.provider
+          });
+          if (topupResult.error) {
+            return { error: topupResult.error };
+          }
+          return {
+            credited: true,
+            balanceAfter: topupResult.balanceAfter,
+            intentId
+          };
+        }
+
+        return {
+          intentId,
+          redirectType: "payment",
+          paymentUrl: paymentInit.paymentUrl || null
+        };
+      } catch (error) {
+        return {
+          error: `Unable to initialize wallet top-up: ${error.message}`
+        };
+      }
+    });
+
+    if (result.error) {
+      apiError(response, 400, result.error);
+      return;
+    }
+
+    const snapshot = await getSnapshot();
+    const user = snapshot.users.find((item) => item.id === request.currentUser.id);
+    const intent = result.intentId
+      ? snapshot.walletTopupIntents.find((item) => item.id === result.intentId)
+      : null;
+    response.json({
+      ok: true,
+      credited: Boolean(result.credited),
+      balanceAfter: Number.isFinite(result.balanceAfter) ? result.balanceAfter : user?.walletBalance || 0,
+      paymentUrl: result.paymentUrl || intent?.paymentUrl || null,
+      topupIntent: serializeWalletTopupIntentForApi(intent)
+    });
+  });
+
+  app.get(
+    "/api/admin/hotels",
+    requireApiRoles(["hotel_admin", "platform_admin"]),
+    async (request, response) => {
+      const snapshot = await getSnapshot();
+      const visibleHotels =
+        request.currentUser.role === "platform_admin"
+          ? snapshot.hotels
+          : snapshot.hotels.filter((hotel) => canAccessHotel(request.currentUser, hotel.id));
+      const hotels = visibleHotels.map((hotel) => {
+        const bookings = snapshot.bookings.filter((item) => item.hotelId === hotel.id);
+        const payments = snapshot.payments.filter(
+          (item) => item.hotelId === hotel.id && item.transactionType === "booking_payment"
+        );
+        const grossSales = payments.reduce((sum, payment) => sum + payment.grossAmount, 0);
+        const platformRevenue = payments.reduce((sum, payment) => sum + payment.platformEarning, 0);
+        return {
+          id: hotel.id,
+          name: hotel.name,
+          location: hotel.location,
+          address: hotel.address || "",
+          commissionRate: hotel.commissionRate,
+          premiumListingActive: Boolean(hotel.premiumListingActive),
+          premiumListingExpiresAt: hotel.premiumListingExpiresAt || null,
+          bookingCount: bookings.length,
+          grossSales,
+          platformRevenue
+        };
+      });
+
+      response.json({
+        ok: true,
+        hotels: sortHotelsForMarketplace(hotels)
+      });
+    }
+  );
+
+  app.get(
+    "/api/admin/hotels/:hotelId/dashboard",
+    requireApiRoles(["hotel_admin", "platform_admin"]),
+    requireApiHotelAccess,
+    async (request, response) => {
+      const checkInDate = request.query.checkInDate || isoDateOffset(1);
+      const checkOutDate = request.query.checkOutDate || isoDateOffset(2);
+      const bookingReference = sanitizeMarketplaceText(request.query.bookingReference, "");
+      const snapshot = await getSnapshot();
+      const hotel = snapshot.hotels.find((item) => item.id === request.params.hotelId);
+
+      if (!hotel) {
+        apiError(response, 404, "Hotel not found.");
+        return;
+      }
+
+      const rooms = snapshot.rooms.filter((room) => room.hotelId === hotel.id);
+      const bookings = snapshot.bookings
+        .filter((booking) => booking.hotelId === hotel.id)
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      const payments = snapshot.payments
+        .filter((payment) => payment.hotelId === hotel.id)
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      const paymentByBookingId = new Map(
+        payments
+          .filter((payment) => payment.bookingId)
+          .map((payment) => [payment.bookingId, payment])
+      );
+      const bookingsWithReferences = bookings.map((booking) => {
+        const payment = paymentByBookingId.get(booking.id);
+        const referenceNumber =
+          booking.referenceNumber ||
+          booking.paymentReference ||
+          booking.paymentExternalId ||
+          payment?.transactionRef ||
+          booking.id;
+        return {
+          ...booking,
+          referenceNumber
+        };
+      });
+      const referenceQuery = bookingReference.toLowerCase();
+      const filteredBookings = bookingReference
+        ? bookingsWithReferences.filter((booking) => {
+            const references = [
+              booking.referenceNumber,
+              booking.id,
+              booking.paymentReference,
+              booking.paymentExternalId
+            ]
+              .filter(Boolean)
+              .map((value) => String(value).toLowerCase());
+            return references.some((value) => value.includes(referenceQuery));
+          })
+        : bookingsWithReferences;
+
+      const availabilityRows = hotelAvailability(snapshot, hotel.id, checkInDate, checkOutDate);
+      const roomById = new Map(rooms.map((room) => [room.id, room]));
+      const availability = availabilityRows.map((entry) => ({
+        ...entry,
+        pricePerNight: roomById.get(entry.roomId)?.pricePerNight || 0
+      }));
+      const pricingInsights = getSmartPricingInsights({
+        data: snapshot,
+        hotelId: hotel.id
+      });
+      const bookingPayments = payments.filter((item) => item.transactionType === "booking_payment");
+      const grossSales = bookingPayments.reduce((sum, payment) => sum + payment.grossAmount, 0);
+      const platformRevenue = bookingPayments.reduce(
+        (sum, payment) => sum + payment.platformEarning,
+        0
+      );
+      const hotelReceivables = bookingPayments.reduce((sum, payment) => sum + payment.hotelPayout, 0);
+
+      response.json({
+        ok: true,
+        search: {
+          checkInDate,
+          checkOutDate,
+          bookingReference
+        },
+        hotel: {
+          id: hotel.id,
+          name: hotel.name,
+          location: hotel.location,
+          address: hotel.address || "",
+          bankName: hotel.bankName || "",
+          bankAccount: hotel.bankAccount || "",
+          commissionRate: hotel.commissionRate,
+          premiumListingActive: Boolean(hotel.premiumListingActive),
+          premiumListingExpiresAt: hotel.premiumListingExpiresAt || null
+        },
+        summary: {
+          grossSales,
+          platformRevenue,
+          hotelReceivables,
+          bookingCount: bookings.length
+        },
+        permissions: {
+          canAdjustCommission: request.currentUser.role === "platform_admin",
+          canUpdateRooms: true
+        },
+        availability,
+        rooms: rooms.map((room) => ({
+          id: room.id,
+          hotelId: room.hotelId,
+          category: room.category,
+          pricePerNight: room.pricePerNight,
+          totalUnits: room.totalUnits
+        })),
+        bookings: filteredBookings.map((booking) => serializeBookingForApi(snapshot, booking)),
+        payments: payments.map((payment) => ({
+          id: payment.id,
+          transactionType: payment.transactionType,
+          transactionRef: payment.transactionRef,
+          paymentProvider: payment.paymentProvider || null,
+          grossAmount: payment.grossAmount,
+          hotelPayout: payment.hotelPayout,
+          platformEarning: payment.platformEarning,
+          paymentStatus: payment.paymentStatus,
+          createdAt: payment.createdAt
+        })),
+        pricingInsights
+      });
+    }
+  );
+
+  app.post(
+    "/api/admin/hotels/:hotelId/rooms/:roomId",
+    requireApiRoles(["hotel_admin", "platform_admin"]),
+    requireApiHotelAccess,
+    async (request, response) => {
+      const hotelId = request.params.hotelId;
+      const roomId = request.params.roomId;
+      const pricePerNight = Math.round(toNumber(request.body.pricePerNight, NaN));
+      const totalUnits = Math.floor(toNumber(request.body.totalUnits, NaN));
+
+      if (!Number.isFinite(pricePerNight) || pricePerNight < 1000) {
+        apiError(response, 400, "Room price must be at least NGN 1,000.");
+        return;
+      }
+      if (!Number.isFinite(totalUnits) || totalUnits < 1) {
+        apiError(response, 400, "Total room units must be at least 1.");
+        return;
+      }
+
+      const result = await withWriteLock(async (data) => {
+        const room = data.rooms.find((item) => item.id === roomId && item.hotelId === hotelId);
+        if (!room) {
+          return { error: "Room category not found for this hotel." };
+        }
+        const minimumUnitsForExistingBookings = getMaxConcurrentBookedUnits(data, room.id);
+        if (totalUnits < minimumUnitsForExistingBookings) {
+          return {
+            error: `Cannot reduce units below ${minimumUnitsForExistingBookings} due to existing confirmed bookings.`
+          };
+        }
+
+        room.pricePerNight = pricePerNight;
+        room.totalUnits = totalUnits;
+        room.updatedAt = new Date().toISOString();
+        return { room };
+      });
+
+      if (result.error) {
+        apiError(response, 400, result.error);
+        return;
+      }
+      response.json({
+        ok: true,
+        room: result.room
+      });
+    }
+  );
+
+  app.post(
+    "/api/admin/hotels/:hotelId/commission",
+    requireApiRoles(["platform_admin"]),
+    requireApiHotelAccess,
+    async (request, response) => {
+      const hotelId = request.params.hotelId;
+      const requestedPercent = toNumber(request.body.commissionRate, NaN);
+      if (!Number.isFinite(requestedPercent) || requestedPercent <= 0) {
+        apiError(response, 400, "Enter a valid commission percentage.");
+        return;
+      }
+
+      const result = await withWriteLock(async (data) => {
+        const hotel = data.hotels.find((item) => item.id === hotelId);
+        if (!hotel) {
+          return { error: "Hotel not found." };
+        }
+        hotel.commissionRate = normalizeCommissionRatePercentInput(
+          requestedPercent,
+          Number.isFinite(hotel.commissionRate) ? hotel.commissionRate : defaultHotelCommissionRate
+        );
+        hotel.updatedAt = new Date().toISOString();
+        return { commissionRate: hotel.commissionRate };
+      });
+
+      if (result.error) {
+        apiError(response, 400, result.error);
+        return;
+      }
+      response.json({
+        ok: true,
+        commissionRate: result.commissionRate,
+        commissionRateDisplay: formatPercent(result.commissionRate)
+      });
+    }
+  );
+
+  app.get(
+    "/api/admin/owner-dashboard",
+    requireApiRoles(["platform_admin"]),
+    async (request, response) => {
+      const snapshot = await getSnapshot();
+      const hotelMap = new Map(snapshot.hotels.map((hotel) => [hotel.id, hotel]));
+      const userMap = new Map(snapshot.users.map((user) => [user.id, user]));
+      const allPayments = [...snapshot.payments].sort(
+        (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+      );
+      const hotelTransactions = allPayments.filter((payment) => payment.hotelId);
+      const commissionRevenue = allPayments
+        .filter((payment) => payment.transactionType === "booking_payment")
+        .reduce((sum, payment) => sum + payment.platformEarning, 0);
+      const premiumRevenue = allPayments
+        .filter((payment) => payment.transactionType === "premium_subscription")
+        .reduce((sum, payment) => sum + payment.platformEarning, 0);
+      const marketplaceRevenue = allPayments
+        .filter((payment) =>
+          [
+            "marketplace_contact_unlock",
+            "marketplace_contact_subscription",
+            "marketplace_contact_subscription_renewal"
+          ].includes(payment.transactionType)
+        )
+        .reduce((sum, payment) => sum + payment.platformEarning, 0);
+      const marketplacePlanRevenue = allPayments
+        .filter((payment) =>
+          [
+            "marketplace_plan_purchase",
+            "marketplace_listing_subscription",
+            "marketplace_listing_subscription_renewal"
+          ].includes(payment.transactionType)
+        )
+        .reduce((sum, payment) => sum + payment.platformEarning, 0);
+      const netPlatformRevenue = allPayments
+        .filter((payment) => payment.transactionType !== "wallet_topup")
+        .reduce((sum, payment) => sum + payment.platformEarning, 0);
+      const grossHotelVolume = hotelTransactions.reduce(
+        (sum, payment) => sum + payment.grossAmount,
+        0
+      );
+      const totalHotelPayouts = hotelTransactions.reduce(
+        (sum, payment) => sum + payment.hotelPayout,
+        0
+      );
+      const walletLiability = snapshot.users.reduce(
+        (sum, user) => sum + (Number.isFinite(user.walletBalance) ? user.walletBalance : 0),
+        0
+      );
+
+      const paymentRows = allPayments.map((payment) => ({
+        ...payment,
+        hotelName: payment.hotelId ? (hotelMap.get(payment.hotelId)?.name || "Unknown hotel") : "-",
+        userName: payment.userId ? (userMap.get(payment.userId)?.name || "Unknown user") : "-"
+      }));
+
+      response.json({
+        ok: true,
+        summary: {
+          paymentCount: allPayments.length,
+          hotelTransactionCount: hotelTransactions.length,
+          grossHotelVolume,
+          totalHotelPayouts,
+          commissionRevenue,
+          premiumRevenue,
+          marketplaceRevenue,
+          marketplacePlanRevenue,
+          netPlatformRevenue,
+          walletLiability
+        },
+        hotels: sortHotelsForMarketplace(snapshot.hotels).map((hotel) => ({
+          id: hotel.id,
+          name: hotel.name,
+          location: hotel.location,
+          commissionRate: hotel.commissionRate
+        })),
+        paymentRows: paymentRows.slice(0, 250).map((payment) => ({
+          id: payment.id,
+          createdAt: payment.createdAt,
+          transactionType: payment.transactionType,
+          hotelName: payment.hotelName,
+          userName: payment.userName,
+          transactionRef: payment.transactionRef,
+          paymentProvider: payment.paymentProvider || null,
+          grossAmount: payment.grossAmount,
+          hotelPayout: payment.hotelPayout,
+          platformEarning: payment.platformEarning,
+          paymentStatus: payment.paymentStatus
+        }))
+      });
+    }
+  );
 
   app.get("/api/marketplace/listings", async (request, response) => {
     if (request.currentUser) {
@@ -5235,6 +6362,14 @@ function createApp() {
     const canUnlockWithSubscription = Boolean(
       canUnlock && buyerContactSubscription && buyerContactSubscription.hasActive
     );
+    const sellerReviews = (snapshot.marketplaceSellerReviews || [])
+      .filter((review) => review.sellerUserId === listing.sellerUserId)
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+      .slice(0, 30)
+      .map((review) => serializeMarketplaceSellerReviewForApi(snapshot, review));
+    const userSellerReview = request.currentUser
+      ? sellerReviews.find((review) => review.reviewerUserId === request.currentUser.id) || null
+      : null;
 
     response.json({
       ok: true,
@@ -5261,8 +6396,195 @@ function createApp() {
         canUnlock,
         canUnlockWithSubscription
       },
+      sellerProfile: {
+        id: seller ? seller.id : listing.sellerUserId,
+        name: seller ? seller.name : "Unknown seller",
+        rating: sellerRating
+      },
+      sellerReviews,
+      userSellerReview,
       buyerContactSubscription,
       marketplaceContactSubscriptionFeeNaira
+    });
+  });
+
+  app.get("/api/marketplace/sellers/:sellerUserId", async (request, response) => {
+    const sellerUserId = request.params.sellerUserId;
+    const snapshot = await getSnapshot();
+    const seller = snapshot.users.find((user) => user.id === sellerUserId);
+    if (!seller) {
+      apiError(response, 404, "Seller profile not found.");
+      return;
+    }
+    const sellerListings = snapshot.marketplaceListings
+      .filter((listing) => listing.sellerUserId === sellerUserId && listing.status === "active")
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+      .map((listing) => enrichMarketplaceListing(snapshot, listing));
+    const sellerReviews = (snapshot.marketplaceSellerReviews || [])
+      .filter((review) => review.sellerUserId === sellerUserId)
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+      .map((review) => serializeMarketplaceSellerReviewForApi(snapshot, review));
+    const sellerRating = getMarketplaceSellerRatingStats(snapshot, sellerUserId);
+    const userSellerReview = request.currentUser
+      ? sellerReviews.find((review) => review.reviewerUserId === request.currentUser.id) || null
+      : null;
+
+    response.json({
+      ok: true,
+      seller: {
+        id: seller.id,
+        name: seller.name,
+        role: seller.role,
+        marketplaceAccountType: currentMarketplaceAccountType(seller),
+        phoneMasked: maskPhone(seller.phone),
+        joinedAt: seller.createdAt
+      },
+      rating: sellerRating,
+      listings: sellerListings.map((listing) => ({
+        id: listing.id,
+        title: listing.title,
+        category: listing.category,
+        condition: listing.condition,
+        location: listing.location,
+        neighborhood: listing.neighborhood,
+        price: listing.price,
+        imageUrls: listing.imageUrls || [],
+        primaryImage: listing.primaryImage,
+        createdAt: listing.createdAt
+      })),
+      reviews: sellerReviews,
+      userReview: userSellerReview
+    });
+  });
+
+  app.post(
+    "/api/marketplace/sellers/:sellerUserId/reviews",
+    requireApiAuth,
+    async (request, response) => {
+      const sellerUserId = request.params.sellerUserId;
+      const rating = normalizeRating(request.body.rating, 0);
+      const comment = sanitizeMarketplaceText(request.body.comment, "");
+
+      if (!rating || !comment) {
+        apiError(response, 400, "Rating and comment are required.");
+        return;
+      }
+      if (containsPhoneNumberLikeText(comment)) {
+        apiError(
+          response,
+          400,
+          "Phone numbers are not allowed in seller reviews (digits or written-out numbers)."
+        );
+        return;
+      }
+
+      const result = await withWriteLock(async (data) => {
+        const seller = data.users.find((user) => user.id === sellerUserId);
+        if (!seller) {
+          return { error: "Seller account not found." };
+        }
+        if (seller.id === request.currentUser.id) {
+          return { error: "You cannot review your own seller profile." };
+        }
+
+        const existing = (data.marketplaceSellerReviews || []).find(
+          (review) =>
+            review.sellerUserId === sellerUserId &&
+            review.reviewerUserId === request.currentUser.id
+        );
+        if (existing) {
+          existing.rating = rating;
+          existing.comment = comment;
+          existing.updatedAt = new Date().toISOString();
+          return { ok: true, review: existing, updated: true };
+        }
+
+        const review = {
+          id: randomUUID(),
+          sellerUserId,
+          reviewerUserId: request.currentUser.id,
+          rating,
+          comment,
+          createdAt: new Date().toISOString()
+        };
+        data.marketplaceSellerReviews.push(review);
+        return { ok: true, review, updated: false };
+      });
+
+      if (result.error) {
+        apiError(response, 400, result.error);
+        return;
+      }
+
+      const snapshot = await getSnapshot();
+      const savedReview = (snapshot.marketplaceSellerReviews || []).find(
+        (review) => review.id === result.review.id
+      );
+      response.status(result.updated ? 200 : 201).json({
+        ok: true,
+        updated: Boolean(result.updated),
+        review: serializeMarketplaceSellerReviewForApi(snapshot, savedReview || result.review)
+      });
+    }
+  );
+
+  app.post("/api/hotels/:hotelId/reviews", requireApiAuth, async (request, response) => {
+    const hotelId = request.params.hotelId;
+    const rating = normalizeRating(request.body.rating, 0);
+    const comment = sanitizeMarketplaceText(request.body.comment, "");
+
+    if (!rating || !comment) {
+      apiError(response, 400, "Rating and comment are required.");
+      return;
+    }
+
+    const result = await withWriteLock(async (data) => {
+      const hotel = data.hotels.find((item) => item.id === hotelId);
+      if (!hotel) {
+        return { error: "Hotel not found." };
+      }
+      const reviewer = data.users.find((item) => item.id === request.currentUser.id);
+      if (!reviewer) {
+        return { error: "Your account was not found. Please sign in again." };
+      }
+
+      const existing = (data.hotelReviews || []).find(
+        (review) => review.hotelId === hotelId && review.reviewerUserId === request.currentUser.id
+      );
+      if (existing) {
+        existing.rating = rating;
+        existing.comment = comment;
+        existing.updatedAt = new Date().toISOString();
+        return { ok: true, review: existing, updated: true };
+      }
+
+      const review = {
+        id: randomUUID(),
+        hotelId,
+        reviewerUserId: request.currentUser.id,
+        rating,
+        comment,
+        createdAt: new Date().toISOString()
+      };
+      data.hotelReviews.push(review);
+      return { ok: true, review, updated: false };
+    });
+
+    if (result.error) {
+      apiError(response, 400, result.error);
+      return;
+    }
+
+    const snapshot = await getSnapshot();
+    const savedReview = (snapshot.hotelReviews || []).find(
+      (review) => review.id === result.review.id
+    );
+    const ratingState = getHotelRatingStats(snapshot, hotelId);
+    response.status(result.updated ? 200 : 201).json({
+      ok: true,
+      updated: Boolean(result.updated),
+      review: serializeHotelReviewForApi(snapshot, savedReview || result.review),
+      rating: ratingState
     });
   });
 
@@ -5283,6 +6605,28 @@ function createApp() {
         limitState,
         plans: marketplacePlans,
         listings
+      });
+    }
+  );
+
+  app.post(
+    "/api/marketplace/listings/upload-images",
+    requireApiAuth,
+    requireApiMarketplaceAccountType(["seller"], "Only seller accounts can upload listing images."),
+    marketplaceUpload.array("images", 4),
+    async (request, response) => {
+      const uploadedFiles = Array.isArray(request.files) ? request.files : [];
+      if (!uploadedFiles.length) {
+        apiError(response, 400, "Upload at least one image.");
+        return;
+      }
+
+      const imageUrls = uploadedFiles.map((file) =>
+        buildAbsoluteUrl(request, `/uploads/marketplace/${file.filename}`)
+      );
+      response.status(201).json({
+        ok: true,
+        imageUrls
       });
     }
   );
@@ -5394,7 +6738,7 @@ function createApp() {
     ),
     async (request, response) => {
       const planId = sanitizeMarketplaceText(request.body.planId, "").toLowerCase();
-      const autoRenew = Boolean(request.body.autoRenew);
+      const autoRenew = toBooleanInput(request.body.autoRenew);
       const plan = getMarketplacePlanById(planId);
       if (!plan || plan.id === "free") {
         apiError(response, 400, "Selected listing plan does not exist.");
@@ -5518,7 +6862,7 @@ function createApp() {
       "Only buyer accounts can activate contact access subscriptions."
     ),
     async (request, response) => {
-      const autoRenew = Boolean(request.body.autoRenew);
+      const autoRenew = toBooleanInput(request.body.autoRenew);
       const result = await withWriteLock(async (data) => {
         const user = data.users.find((item) => item.id === request.currentUser.id);
         if (!user) {
@@ -5715,6 +7059,10 @@ function createApp() {
   });
 
   app.use((request, response) => {
+    if (request.path.startsWith("/api/")) {
+      apiError(response, 404, "API route not found.");
+      return;
+    }
     response.status(404).render("error", {
       message: "Page not found.",
       platform: response.locals.platform
@@ -5737,6 +7085,23 @@ function createApp() {
         `Listing image upload failed: ${error.message}. Use up to 4 images and max 5MB each.`
       );
       response.redirect("/marketplace/new");
+      return;
+    }
+
+    if (
+      request.path === "/api/marketplace/listings/upload-images" &&
+      (error.name === "MulterError" || /image uploads|only image/i.test(error.message || ""))
+    ) {
+      apiError(
+        response,
+        400,
+        `Listing image upload failed: ${error.message}. Use up to 4 images and max 5MB each.`
+      );
+      return;
+    }
+
+    if (request.path.startsWith("/api/")) {
+      apiError(response, 500, `Unexpected server error: ${error.message}`);
       return;
     }
 

@@ -9,17 +9,29 @@ This folder contains the React Native app for HuT, backed by the existing Node.j
 
 ## Run
 
-1. Start backend API from repository root:
+1. Install dependencies from repository root:
+
+```bash
+npm run setup:all
+```
+
+2. Start backend API from repository root:
 
 ```bash
 npm start
 ```
 
-2. Start mobile app:
+3. Start mobile app:
 
 ```bash
 cd mobile
 npm start
+```
+
+Or run both backend + mobile from repository root:
+
+```bash
+npm run dev:all
 ```
 
 ## API Base URL
@@ -41,6 +53,17 @@ EXPO_PUBLIC_API_BASE_URL=http://192.168.1.10:3000 npm start
 - account registration/login via `/api/auth/*`
 - buyer/seller account types
 - stays browsing + detail via `/api/stays*`
+- mobile booking checkout flow via `/api/bookings*`
+- in-app hotel review submission and listing
 - marketplace browsing + detail via `/api/marketplace/listings*`
+- in-app seller reviews and ratings
 - buyer contact subscription + contact unlock flow
 - seller listing creation and my listings
+- camera/gallery image upload for seller listings (`expo-image-picker`)
+- wallet top-up and wallet activity feed via `/api/wallet*`
+- admin mobile screens:
+  - hotel admin dashboard list (`/api/admin/hotels`)
+  - hotel dashboard operations (`/api/admin/hotels/:hotelId/dashboard`)
+  - room inventory/price updates (`/api/admin/hotels/:hotelId/rooms/:roomId`)
+  - commission control for platform owner (`/api/admin/hotels/:hotelId/commission`)
+  - platform owner revenue dashboard (`/api/admin/owner-dashboard`)

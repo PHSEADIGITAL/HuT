@@ -23,6 +23,7 @@ Hut! is a hotel booking web app for Bonny Island with:
 - virtual wallet for users (top-up and spend on unlock fees)
 - OTP-based forgot password (email or phone)
 - React Native mobile app (Expo) connected to Node.js API (`mobile/`)
+- mobile booking checkout, wallet top-up UI, camera/gallery uploads, seller+hotel reviews, and admin dashboards
 
 ---
 
@@ -41,11 +42,20 @@ Hut! is a hotel booking web app for Bonny Island with:
 
 ```bash
 npm install
+npm run setup:mobile
 cp .env.example .env
 npm start
 ```
 
 Open: `http://localhost:3000`
+
+Run backend + mobile together:
+
+```bash
+npm run dev:all
+```
+
+Cloud defaults note: `docs/cloud-env-defaults.md`
 
 ---
 
@@ -105,12 +115,27 @@ Open: `http://localhost:3000`
 - `POST /api/auth/register` - Mobile registration + token
 - `POST /api/auth/login` - Mobile login + token
 - `GET /api/auth/me` - Mobile profile
+- `GET /api/wallet` - Wallet balance, transactions, pending topups
+- `POST /api/wallet/topup` - Initialize or complete wallet top-up
 - `GET /api/stays` - Hotel listing API
 - `GET /api/stays/:hotelId` - Hotel detail API
+- `POST /api/hotels/:hotelId/reviews` - Submit or update hotel review
+- `POST /api/bookings` - Create booking + checkout session
+- `GET /api/bookings/my` - Customer booking history
+- `GET /api/bookings/:bookingId` - Booking detail
+- `POST /api/bookings/:bookingId/cancel` - Cancel confirmed booking
 - `GET /api/marketplace/listings` - Marketplace listing API
 - `GET /api/marketplace/listings/:listingId` - Marketplace detail API
+- `GET /api/marketplace/sellers/:sellerUserId` - Seller profile + ratings
+- `POST /api/marketplace/sellers/:sellerUserId/reviews` - Submit/update seller review
+- `POST /api/marketplace/listings/upload-images` - Upload seller images (camera/gallery flow)
 - `GET /api/hotels/:hotelId/availability` - Availability snapshot
 - `GET /api/hotels/:hotelId/availability/stream` - SSE real-time updates
+- `GET /api/admin/hotels` - Admin-accessible hotels
+- `GET /api/admin/hotels/:hotelId/dashboard` - Hotel admin dashboard data
+- `POST /api/admin/hotels/:hotelId/rooms/:roomId` - Update room price/inventory
+- `POST /api/admin/hotels/:hotelId/commission` - Update commission (platform owner)
+- `GET /api/admin/owner-dashboard` - Platform owner revenue API dashboard
 - `GET /payments/callback/paystack` - Payment callback
 - `GET /payments/callback/flutterwave` - Payment callback
 

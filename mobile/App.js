@@ -12,6 +12,9 @@ import StayDetailScreen from "./src/screens/StayDetailScreen";
 import MarketplaceScreen from "./src/screens/MarketplaceScreen";
 import MarketplaceDetailScreen from "./src/screens/MarketplaceDetailScreen";
 import AccountScreen from "./src/screens/AccountScreen";
+import AdminHotelsScreen from "./src/screens/AdminHotelsScreen";
+import AdminHotelDashboardScreen from "./src/screens/AdminHotelDashboardScreen";
+import OwnerDashboardScreen from "./src/screens/OwnerDashboardScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -60,6 +63,17 @@ function RootNavigator() {
           options={{ title: "Listing Details" }}
         />
         <Stack.Screen name="Account" component={AccountScreen} options={{ title: "My Account" }} />
+        <Stack.Screen name="AdminHotels" component={AdminHotelsScreen} options={{ title: "Admin Hotels" }} />
+        <Stack.Screen
+          name="AdminHotelDashboard"
+          component={AdminHotelDashboardScreen}
+          options={{ title: "Hotel Dashboard" }}
+        />
+        <Stack.Screen
+          name="OwnerDashboard"
+          component={OwnerDashboardScreen}
+          options={{ title: "Owner Dashboard" }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

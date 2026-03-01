@@ -7,6 +7,11 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node src/server.js",
+    "dev:backend": "node src/server.js",
+    "dev:mobile": "npm run start --prefix mobile",
+    "dev:all": "concurrently -k -n backend,mobile -c blue,magenta \"npm run dev:backend\" \"npm run dev:mobile\"",
+    "setup:mobile": "npm install --prefix mobile",
+    "setup:all": "npm install && npm run setup:mobile",
     "test": "node --test",
     "smoke": "node --test test/smoke.test.js"
   },
@@ -26,5 +31,8 @@
     "multer": "^2.0.2",
     "nodemailer": "^8.0.1",
     "supertest": "^7.2.2"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }
