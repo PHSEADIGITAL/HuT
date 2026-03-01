@@ -1,0 +1,59 @@
+<%- include("partials/header", { title: "My Bookings" }) %>
+
+<section class="hero small">
+  <h1>My bookings</h1>
+  <p>Review all your hotel bookings and open any booking to manage or cancel it.</p>
+</section>
+
+<section class="card">
+  <h2>Booking history</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Booked On</th>
+          <th>Reference</th>
+          <th>Hotel</th>
+          <th>Stay Dates</th>
+          <th>Status</th>
+          <th>Payment</th>
+          <th>Total Paid</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!bookings.length) { %>
+          <tr>
+            <td colspan="8" class="muted">You have not made any bookings yet.</td>
+          </tr>
+        <% } %>
+        <% bookings.forEach((booking) => { %>
+          <tr>
+            <td><%= booking.createdAt %></td>
+            <td><%= booking.referenceNumber || booking.id %></td>
+            <td>
+              <strong><%= booking.hotelName %></strong>
+              <% if (booking.location) { %>
+                <br />
+                <span class="muted tiny"><%= booking.location %></span>
+              <% } %>
+            </td>
+            <td><%= booking.checkInDate %> to <%= booking.checkOutDate %></td>
+            <td><%= booking.status %></td>
+            <td>
+              <%= booking.paymentStatus %>
+              <br />
+              <span class="muted tiny">Ref: <%= booking.transactionReference %></span>
+            </td>
+            <td><%= formatNaira(booking.pricing && booking.pricing.totalPaid ? booking.pricing.totalPaid : 0) %></td>
+            <td>
+              <a class="button-link small" href="<%= booking.manageUrl %>">Manage</a>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<%- include("partials/footer", { platform }) %>

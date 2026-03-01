@@ -39,6 +39,18 @@
       if (bookedCell) {
         bookedCell.textContent = String(room.activeBookings);
       }
+      const offPlatformBookedCell = row.querySelector(".offplatform-booked-value");
+      if (offPlatformBookedCell) {
+        offPlatformBookedCell.textContent = String(
+          Number.isFinite(room.manualBookedUnits) ? room.manualBookedUnits : 0
+        );
+      }
+      const totalBookedCell = row.querySelector(".total-booked-value");
+      if (totalBookedCell) {
+        totalBookedCell.textContent = String(
+          Number.isFinite(room.totalBookedUnits) ? room.totalBookedUnits : room.activeBookings
+        );
+      }
     });
   }
 

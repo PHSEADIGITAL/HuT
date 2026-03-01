@@ -208,10 +208,10 @@ body {
 
 .room-update-form {
   display: grid;
-  grid-template-columns: repeat(2, minmax(110px, 1fr)) auto;
+  grid-template-columns: repeat(3, minmax(110px, 1fr)) auto;
   gap: 0.45rem;
   align-items: end;
-  min-width: 330px;
+  min-width: 460px;
 }
 
 .room-update-form label {
@@ -1006,6 +1006,14 @@ body {
   display: inline-flex;
   gap: 0.7rem;
   align-items: center;
+}
+
+.review-pill-link {
+  text-decoration: none;
+}
+
+.review-pill-link:hover p {
+  text-decoration: underline;
 }
 
 .review-pill p {

@@ -10,32 +10,38 @@
 
 <section class="stats-grid">
   <article class="card">
-    <h3>Gross Booking Sales</h3>
-    <p class="metric"><%= formatNaira(grossSales) %></p>
-  </article>
-  <article class="card">
     <h3>Hotel Receivables</h3>
     <p class="metric"><%= formatNaira(hotelReceivables) %></p>
-  </article>
-  <article class="card">
-    <h3>Platform Commission</h3>
-    <p class="metric"><%= formatNaira(platformRevenue) %></p>
-  </article>
-  <article class="card">
-    <h3>Commission Rate</h3>
-    <p class="metric"><%= formatPercent(hotel.commissionRate) %></p>
   </article>
 </section>
 
 <section class="card">
-  <h2>Commercial settings</h2>
-  <p>
-    Current commission rate:
-    <strong><%= formatPercent(hotel.commissionRate || platform.defaultCommissionRate) %></strong>
-  </p>
-  <% if (currentUser && currentUser.role === "platform_admin") { %>
-    <details class="inline-editor">
-      <summary>Adjust commission rate</summary>
+  <h2>Additional dashboard controls (on demand)</h2>
+  <details class="inline-editor">
+    <summary>Open financial overview</summary>
+    <div class="summary-grid">
+      <div>
+        <span class="label">Gross booking sales</span>
+        <strong><%= formatNaira(grossSales) %></strong>
+      </div>
+      <div>
+        <span class="label">Platform commission</span>
+        <strong><%= formatNaira(platformRevenue) %></strong>
+      </div>
+      <div>
+        <span class="label">Commission rate</span>
+        <strong><%= formatPercent(hotel.commissionRate || platform.defaultCommissionRate) %></strong>
+      </div>
+    </div>
+  </details>
+
+  <details class="inline-editor">
+    <summary>Commercial settings</summary>
+    <p>
+      Current commission rate:
+      <strong><%= formatPercent(hotel.commissionRate || platform.defaultCommissionRate) %></strong>
+    </p>
+    <% if (currentUser && currentUser.role === "platform_admin") { %>
       <form class="commission-form" method="POST" action="/admin/hotels/<%= hotel.id %>/commission">
         <input type="hidden" name="returnTo" value="/admin/hotels/<%= hotel.id %>/dashboard" />
         <div>
@@ -53,18 +59,27 @@
         </div>
         <button type="submit">Update commission</button>
       </form>
-    </details>
-  <% } else { %>
-    <p class="muted tiny">Only platform owner accounts can update commission rates.</p>
-  <% } %>
-</section>
+    <% } else { %>
+      <p class="muted tiny">Only platform owner accounts can update commission rates.</p>
+    <% } %>
+  </details>
 
-<% if (currentUser && currentUser.role === "platform_admin") { %>
-  <section class="card">
-    <h2>Edit hotel profile</h2>
-    <p class="muted tiny">Platform owners can edit all hotel profile fields after onboarding.</p>
+  <details class="inline-editor">
+    <summary>Premium listing subscription</summary>
+    <p>
+      Status:
+      <strong><%= hotel.premiumListingActive ? "Active" : "Inactive" %></strong>
+    </p>
+    <p>Expires: <strong><%= hotel.premiumListingExpiresAt || "-" %></strong></p>
+    <form method="POST" action="/admin/hotels/<%= hotel.id %>/subscription/renew">
+      <button type="submit">Renew +30 days (<%= formatNaira(platform.premiumSubscriptionMonthlyFee) %>)</button>
+    </form>
+  </details>
+
+  <% if (currentUser && currentUser.role === "platform_admin") { %>
     <details class="inline-editor">
-      <summary>Edit all hotel areas</summary>
+      <summary>Edit hotel profile (platform owner)</summary>
+      <p class="muted tiny">Platform owners can edit all hotel profile fields after onboarding.</p>
       <form class="grid-form" method="POST" action="/admin/hotels/<%= hotel.id %>/profile">
         <div>
           <label for="name">Hotel name</label>
@@ -176,19 +191,7 @@
         </div>
       </form>
     </details>
-  </section>
-<% } %>
-
-<section class="card">
-  <h2>Premium listing subscription</h2>
-  <p>
-    Status:
-    <strong><%= hotel.premiumListingActive ? "Active" : "Inactive" %></strong>
-  </p>
-  <p>Expires: <strong><%= hotel.premiumListingExpiresAt || "-" %></strong></p>
-  <form method="POST" action="/admin/hotels/<%= hotel.id %>/subscription/renew">
-    <button type="submit">Renew +30 days (<%= formatNaira(platform.premiumSubscriptionMonthlyFee) %>)</button>
-  </form>
+  <% } %>
 </section>
 
 <section
@@ -199,6 +202,9 @@
   data-check-out="<%= checkOutDate %>"
 >
   <h2>Real-time room availability</h2>
+  <p class="muted tiny">
+    Include off-platform bookings in availability by updating the "Off-platform booked" value per room.
+  </p>
   <form class="grid-form compact" method="GET" action="/admin/hotels/<%= hotel.id %>/dashboard">
     <div>
       <label for="checkInDate">Check-in</label>
@@ -220,7 +226,9 @@
           <th>Room</th>
           <th>Price / Night</th>
           <th>Total Units</th>
-          <th>Booked</th>
+          <th>Booked (Platform)</th>
+          <th>Booked (Off-platform)</th>
+          <th>Booked (Total)</th>
           <th>Available</th>
           <th>Update Inventory + Price</th>
         </tr>
@@ -228,7 +236,7 @@
       <tbody>
         <% if (!availability.length) { %>
           <tr>
-            <td colspan="6" class="muted">No room categories configured for this hotel yet.</td>
+            <td colspan="8" class="muted">No room categories configured for this hotel yet.</td>
           </tr>
         <% } %>
         <% availability.forEach((room) => { %>
@@ -237,6 +245,8 @@
             <td><%= formatNaira(room.pricePerNight) %></td>
             <td><%= room.totalUnits %></td>
             <td class="booked-value"><%= room.activeBookings %></td>
+            <td class="offplatform-booked-value"><%= room.manualBookedUnits || 0 %></td>
+            <td class="total-booked-value"><%= room.totalBookedUnits || room.activeBookings %></td>
             <td class="availability-value <%= room.soldOut ? 'danger' : 'success' %>">
               <%= room.availableUnits %>
             </td>
@@ -269,6 +279,18 @@
                       min="1"
                       step="1"
                       value="<%= room.totalUnits %>"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label for="manual-booked-<%= room.roomId %>">Off-platform booked</label>
+                    <input
+                      id="manual-booked-<%= room.roomId %>"
+                      type="number"
+                      name="manualBookedUnits"
+                      min="0"
+                      step="1"
+                      value="<%= room.manualBookedUnits || 0 %>"
                       required
                     />
                   </div>
