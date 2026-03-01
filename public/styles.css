@@ -1467,6 +1467,8 @@ body.marketplace-mode .card {
 
 .marketplace-detail-shell .market-detail-image {
   border: 1px solid #dce5f5;
+  width: min(100%, 560px);
+  display: block;
 }
 
 .marketplace-actions {
@@ -1608,7 +1610,7 @@ body.marketplace-mode .card {
 
 .market-detail-image {
   width: 100%;
-  max-height: 220px;
+  max-height: 300px;
   object-fit: cover;
   border-radius: 12px;
   margin-bottom: 0.65rem;
