@@ -1,0 +1,30 @@
+<%- include("partials/header", { title: "Welcome" }) %>
+
+<section class="card landing-choice-hero">
+  <p class="eyebrow">Welcome to <%= appName %></p>
+  <h1>Finding a Place to stay or going to the marketplace ?</h1>
+  <p class="muted">
+    Choose where you want to start. You can switch between both experiences any time.
+  </p>
+</section>
+
+<section class="landing-choice-grid">
+  <article class="card landing-choice-card">
+    <h2>Hotel Booking</h2>
+    <p class="muted">
+      Search stays, compare prices, and reserve rooms with secure payment and booking reference
+      tracking.
+    </p>
+    <a class="button-link full-width" href="/stays">Continue to Stays</a>
+  </article>
+
+  <article class="card landing-choice-card">
+    <h2>Marketplace</h2>
+    <p class="muted">
+      Buy or sell items in your neighborhood with dedicated buyer/seller account features.
+    </p>
+    <a class="button-link full-width" href="/marketplace">Continue to Marketplace</a>
+  </article>
+</section>
+
+<%- include("partials/footer", { platform }) %>

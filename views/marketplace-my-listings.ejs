@@ -19,14 +19,6 @@
     <p class="muted tiny">Remaining: <strong><%= limitState.remainingDisplay %></strong></p>
     <p class="muted tiny">Total listings: <strong><%= listings.length %></strong></p>
     <p class="muted tiny">Wallet: <strong><%= formatNaira(walletBalance || 0) %></strong></p>
-    <p class="muted tiny">
-      Contact access:
-      <strong>
-        <%= contactAccessState && contactAccessState.hasActive
-          ? `Active until ${contactAccessState.expiresAt}`
-          : `Inactive (${formatNaira(marketplaceContactSubscriptionFeeNaira)}/month)` %>
-      </strong>
-    </p>
 
     <div class="marketplace-actions">
       <a class="button-link full-width" href="/marketplace/new">Create listing</a>
@@ -62,25 +54,6 @@
       <% }) %>
     </div>
 
-    <hr />
-    <h3>Contact access subscription</h3>
-    <form method="POST" action="/marketplace/contact-subscription/purchase">
-      <input type="hidden" name="returnTo" value="/marketplace/my-listings" />
-      <label class="checkbox tiny">
-        <input
-          type="checkbox"
-          name="autoRenew"
-          value="yes"
-          <%= contactAccessState && contactAccessState.autoRenew ? "checked" : "" %>
-        />
-        Enable auto-renew
-      </label>
-      <button type="submit" class="ghost-btn full-width">
-        <%= contactAccessState && contactAccessState.hasActive
-          ? "Update auto-renew"
-          : `Activate (${formatNaira(marketplaceContactSubscriptionFeeNaira)}/month)` %>
-      </button>
-    </form>
   </aside>
 
   <section class="marketplace-result-list">

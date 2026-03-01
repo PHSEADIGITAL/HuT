@@ -95,6 +95,9 @@ function ensureDataShape(data) {
     }
   }
 
+  const marketplaceSellerUserIds = new Set(
+    (data.marketplaceListings || []).map((listing) => listing.sellerUserId)
+  );
   for (const user of data.users) {
     if (!Number.isFinite(user.walletBalance)) {
       user.walletBalance = 0;
@@ -104,6 +107,11 @@ function ensureDataShape(data) {
     }
     if (!Number.isFinite(user.marketplacePaidUnlockCount)) {
       user.marketplacePaidUnlockCount = 0;
+    }
+    if (!["buyer", "seller"].includes(String(user.marketplaceAccountType || "").toLowerCase())) {
+      user.marketplaceAccountType = marketplaceSellerUserIds.has(user.id) ? "seller" : "buyer";
+    } else {
+      user.marketplaceAccountType = String(user.marketplaceAccountType || "").toLowerCase();
     }
   }
 

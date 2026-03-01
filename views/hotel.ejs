@@ -1,7 +1,7 @@
 <%- include("partials/header", { title: hotel.name }) %>
 
 <section class="property-headline">
-  <form method="GET" action="/" class="back-search-form">
+  <form method="GET" action="/stays" class="back-search-form">
     <input type="hidden" name="destination" value="<%= search.destination %>" />
     <input type="hidden" name="checkInDate" value="<%= checkInDate %>" />
     <input type="hidden" name="checkOutDate" value="<%= checkOutDate %>" />

@@ -27,6 +27,7 @@ test("guest routes and health check", async () => {
   assert.equal(healthResponse.body.ok, true);
 
   await guest.get("/").expect(200);
+  await guest.get("/stays").expect(200);
   await guest.get("/admin").expect(302);
 });
 
@@ -198,8 +199,29 @@ test("marketplace listing plans and subscription-based contact unlock flow", asy
   assert.ok(failures >= 1);
   assert.ok(successes <= 4);
 
-  const buyer = supertest.agent(app);
   const unique = Date.now();
+  await seller
+    .post("/wallet/topup")
+    .type("form")
+    .send({
+      amount: "3000",
+      reference: `SELLER-SMOKE-${unique}`
+    })
+    .expect(302);
+
+  await seller
+    .post("/marketplace/plans/purchase")
+    .type("form")
+    .send({
+      planId: "basic",
+      autoRenew: "yes"
+    })
+    .expect(302);
+
+  const planPage = await seller.get("/marketplace/new").expect(200);
+  assert.match(planPage.text, /4 \/ 20/);
+
+  const buyer = supertest.agent(app);
   await buyer
     .post("/auth/register")
     .type("form")
@@ -207,6 +229,7 @@ test("marketplace listing plans and subscription-based contact unlock flow", asy
       name: "Marketplace Buyer",
       phone: `+23480355${String(unique).slice(-4)}`,
       email: `buyer${unique}@hut.app`,
+      marketplaceAccountType: "buyer",
       password: "Buyer@123",
       confirmPassword: "Buyer@123",
       next: "/marketplace"
@@ -221,18 +244,6 @@ test("marketplace listing plans and subscription-based contact unlock flow", asy
       reference: `SMOKE-${unique}`
     })
     .expect(302);
-
-  await buyer
-    .post("/marketplace/plans/purchase")
-    .type("form")
-    .send({
-      planId: "basic",
-      autoRenew: "yes"
-    })
-    .expect(302);
-
-  const planPage = await buyer.get("/marketplace/new").expect(200);
-  assert.match(planPage.text, /0 \/ 20/);
 
   await buyer
     .post("/marketplace/listings/listing-used-iphone-13/unlock-contact")
@@ -276,6 +287,7 @@ test("marketplace contact subscription updates auto-renew without double-charge"
       name: "Subscription Buyer",
       phone: `+23480399${String(unique).slice(-4)}`,
       email: buyerEmail,
+      marketplaceAccountType: "buyer",
       password: "Buyer@123",
       confirmPassword: "Buyer@123",
       next: "/marketplace"
@@ -329,6 +341,87 @@ test("marketplace contact subscription updates auto-renew without double-charge"
   assert.equal(activeSubscriptionsAfterToggle[0].autoRenew, false);
 });
 
+test("marketplace registration type controls buyer vs seller features", async () => {
+  const app = createApp();
+  const seller = supertest.agent(app);
+  const buyer = supertest.agent(app);
+  const unique = Date.now();
+  const sellerEmail = `typed-seller-${unique}@hut.app`;
+  const buyerEmail = `typed-buyer-${unique}@hut.app`;
+
+  await seller
+    .post("/auth/register")
+    .type("form")
+    .send({
+      name: "Typed Seller",
+      phone: `+2348123${String(unique).slice(-6)}`,
+      email: sellerEmail,
+      marketplaceAccountType: "seller",
+      password: "Typed@123",
+      confirmPassword: "Typed@123",
+      next: "/marketplace"
+    })
+    .expect(302);
+
+  await buyer
+    .post("/auth/register")
+    .type("form")
+    .send({
+      name: "Typed Buyer",
+      phone: `+2349133${String(unique).slice(-6)}`,
+      email: buyerEmail,
+      marketplaceAccountType: "buyer",
+      password: "Typed@123",
+      confirmPassword: "Typed@123",
+      next: "/marketplace"
+    })
+    .expect(302);
+
+  await seller.get("/marketplace/new").expect(200);
+
+  const buyerNewPageResponse = await buyer.get("/marketplace/new").expect(302);
+  assert.equal(buyerNewPageResponse.headers.location, "/marketplace");
+
+  await seller
+    .post("/marketplace/contact-subscription/purchase")
+    .type("form")
+    .send({
+      returnTo: "/marketplace"
+    })
+    .expect(302);
+
+  const createAsBuyerResponse = await buyer
+    .post("/marketplace/listings")
+    .type("form")
+    .send({
+      title: "Buyer Cannot Sell",
+      description: "This should be blocked for buyer accounts.",
+      category: "Electronics",
+      condition: "Used",
+      location: "Bonny Island",
+      neighborhood: "Sandfield",
+      price: "10000"
+    })
+    .expect(302);
+  assert.equal(createAsBuyerResponse.headers.location, "/marketplace");
+
+  const db = JSON.parse(await fs.readFile(dbFilePath, "utf8"));
+  const sellerRow = (db.users || []).find((user) => user.email === sellerEmail);
+  const buyerRow = (db.users || []).find((user) => user.email === buyerEmail);
+  assert.ok(sellerRow);
+  assert.ok(buyerRow);
+  assert.equal(sellerRow.marketplaceAccountType, "seller");
+  assert.equal(buyerRow.marketplaceAccountType, "buyer");
+  const sellerContactSubscriptions = (db.marketplaceContactSubscriptions || []).filter(
+    (subscription) => subscription.userId === sellerRow.id
+  );
+  assert.equal(sellerContactSubscriptions.length, 0);
+  const buyerListings = (db.marketplaceListings || []).filter(
+    (listing) => listing.sellerUserId === buyerRow.id
+  );
+  assert.equal(buyerListings.length, 0);
+});
+
 test("users can submit seller and hotel reviews with ratings", async () => {
   const app = createApp();
   const reviewer = supertest.agent(app);
@@ -341,6 +434,7 @@ test("users can submit seller and hotel reviews with ratings", async () => {
       name: "Ratings Reviewer",
       phone: `+23480377${String(unique).slice(-4)}`,
       email: `reviewer${unique}@hut.app`,
+      marketplaceAccountType: "buyer",
       password: "Reviewer@123",
       confirmPassword: "Reviewer@123",
       next: "/marketplace"
@@ -402,6 +496,7 @@ test("seller reviews reject phone numbers written as digits or words", async () 
       name: "Seller Review Guard",
       phone: `+23480388${String(unique).slice(-4)}`,
       email,
+      marketplaceAccountType: "buyer",
       password: "Reviewer@123",
       confirmPassword: "Reviewer@123",
       next: "/marketplace"
@@ -443,6 +538,7 @@ test("forgot password OTP flow resets password", async () => {
       name: "Otp User",
       phone,
       email,
+      marketplaceAccountType: "buyer",
       password: "Start@123",
       confirmPassword: "Start@123",
       next: "/"

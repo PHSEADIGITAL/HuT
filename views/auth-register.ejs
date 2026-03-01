@@ -24,6 +24,22 @@
       <input id="email" name="email" type="email" required />
     </div>
 
+    <div class="full">
+      <label>Marketplace account type</label>
+      <div class="account-type-grid">
+        <label class="account-type-option">
+          <input type="radio" name="marketplaceAccountType" value="buyer" checked required />
+          <strong>Buyer</strong>
+          <span class="muted tiny">Unlock seller contacts and shop marketplace items.</span>
+        </label>
+        <label class="account-type-option">
+          <input type="radio" name="marketplaceAccountType" value="seller" required />
+          <strong>Seller</strong>
+          <span class="muted tiny">Create listings and manage your seller inventory.</span>
+        </label>
+      </div>
+    </div>
+
     <div>
       <label for="password">Password</label>
       <input id="password" name="password" type="password" minlength="8" required />

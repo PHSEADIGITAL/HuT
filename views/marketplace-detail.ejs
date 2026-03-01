@@ -93,6 +93,11 @@
       </form>
       <p class="muted tiny">Wallet balance: <%= formatNaira(walletBalance || 0) %></p>
     <% } %>
+    <% if (currentUser && !isBuyerMarketplaceUser && !canViewContact) { %>
+      <p class="muted tiny">
+        Buyer accounts can unlock seller contacts. Seller accounts can create and manage listings.
+      </p>
+    <% } %>
 
     <% if (!currentUser) { %>
       <a class="button-link full-width" href="/marketplace#marketplace-auth">

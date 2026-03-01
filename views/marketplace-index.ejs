@@ -94,26 +94,39 @@
           <strong><%= listings.length %></strong> item<%= listings.length === 1 ? "" : "s" %>
           found.
         </p>
-        <% if (currentUser && limitState) { %>
+        <% if (currentUser) { %>
           <p class="muted tiny">
-            Listing plan:
-            <strong><%= limitState.currentPlan ? limitState.currentPlan.name : "Free Plan" %></strong>
-            • Used <strong><%= limitState.used %></strong> / <strong><%= limitState.includedLimitDisplay %></strong>
+            Account type:
+            <strong><%= (marketplaceAccountType || "buyer").toUpperCase() %></strong>
           </p>
-          <p class="muted tiny">
-            Contact access:
-            <strong>
-              <%= contactAccessState && contactAccessState.hasActive
-                ? `Active until ${contactAccessState.expiresAt}`
-                : "Not active" %>
-            </strong>
-          </p>
+          <% if (isSellerMarketplaceUser && limitState) { %>
+            <p class="muted tiny">
+              Listing plan:
+              <strong><%= limitState.currentPlan ? limitState.currentPlan.name : "Free Plan" %></strong>
+              • Used <strong><%= limitState.used %></strong> / <strong><%= limitState.includedLimitDisplay %></strong>
+            </p>
+          <% } %>
+          <% if (isBuyerMarketplaceUser) { %>
+            <p class="muted tiny">
+              Contact access:
+              <strong>
+                <%= contactAccessState && contactAccessState.hasActive
+                  ? `Active until ${contactAccessState.expiresAt}`
+                  : `Inactive (${formatNaira(marketplaceContactSubscriptionFeeNaira)}/month)` %>
+              </strong>
+            </p>
+          <% } %>
         <% } %>
       </div>
       <div class="marketplace-cta">
         <% if (currentUser) { %>
-          <a class="button-link" href="/marketplace/new">Sell an item</a>
-          <a class="ghost-link" href="/marketplace/my-listings">My listings</a>
+          <% if (isSellerMarketplaceUser) { %>
+            <a class="button-link" href="/marketplace/new">Sell an item</a>
+            <a class="ghost-link" href="/marketplace/my-listings">My listings</a>
+          <% } %>
+          <% if (isBuyerMarketplaceUser) { %>
+            <a class="button-link" href="/wallet">Activate buyer tools</a>
+          <% } %>
           <a class="ghost-link" href="/wallet">Wallet (<%= formatNaira(walletBalance || 0) %>)</a>
         <% } else { %>
           <a class="button-link" href="#marketplace-auth">Sign in to sell</a>
@@ -170,6 +183,27 @@
             <label for="marketRegisterEmail">Email</label>
             <input id="marketRegisterEmail" name="email" type="email" required />
           </div>
+          <div class="full">
+            <label>Marketplace account type</label>
+            <div class="account-type-grid">
+              <label class="account-type-option">
+                <input
+                  type="radio"
+                  name="marketplaceAccountType"
+                  value="buyer"
+                  checked
+                  required
+                />
+                <strong>Buyer</strong>
+                <span class="muted tiny">Unlock seller contacts and buy items.</span>
+              </label>
+              <label class="account-type-option">
+                <input type="radio" name="marketplaceAccountType" value="seller" required />
+                <strong>Seller</strong>
+                <span class="muted tiny">List and manage products as a marketplace seller.</span>
+              </label>
+            </div>
+          </div>
           <div>
             <label for="marketRegisterPassword">Password</label>
             <input
@@ -208,9 +242,9 @@
       </div>
     </article>
 
-    <% if (currentUser && limitState) { %>
+    <% if (currentUser && isSellerMarketplaceUser && limitState) { %>
       <article class="card">
-        <h3>Your marketplace subscriptions</h3>
+        <h3>Your seller listing subscriptions</h3>
         <p class="muted">
           Used <strong><%= limitState.used %></strong> of <strong><%= limitState.includedLimitDisplay %></strong>
           listings this month.
@@ -221,36 +255,6 @@
             <%= activePlanSubscriptions.map((item) => item.planName).join(", ") %>
           </p>
         <% } %>
-        <p class="muted tiny">
-          Contact access:
-          <strong>
-            <%= contactAccessState && contactAccessState.hasActive
-              ? `Active until ${contactAccessState.expiresAt}`
-              : `Inactive (${formatNaira(marketplaceContactSubscriptionFeeNaira)}/month)` %>
-          </strong>
-        </p>
-
-        <form class="grid-form compact" method="POST" action="/marketplace/contact-subscription/purchase">
-          <input type="hidden" name="returnTo" value="/marketplace" />
-          <div class="full">
-            <label class="checkbox">
-              <input
-                type="checkbox"
-                name="autoRenew"
-                value="yes"
-                <%= contactAccessState && contactAccessState.autoRenew ? "checked" : "" %>
-              />
-              Enable auto-renew for contact access
-            </label>
-          </div>
-          <div class="full">
-            <button type="submit" class="ghost-btn">
-              <%= contactAccessState && contactAccessState.hasActive
-                ? "Update contact auto-renew"
-                : `Activate contact access (${formatNaira(marketplaceContactSubscriptionFeeNaira)}/month)` %>
-            </button>
-          </div>
-        </form>
 
         <div class="marketplace-plan-grid">
           <% marketplacePlans.filter((plan) => plan.id !== "free").forEach((plan) => { %>
@@ -274,6 +278,44 @@
             </article>
           <% }) %>
         </div>
+      </article>
+    <% } %>
+
+    <% if (currentUser && isBuyerMarketplaceUser) { %>
+      <article class="card">
+        <h3>Buyer contact subscription</h3>
+        <p class="muted tiny">
+          Unlock any seller contact with one active monthly buyer subscription.
+        </p>
+        <p class="muted tiny">
+          Status:
+          <strong>
+            <%= contactAccessState && contactAccessState.hasActive
+              ? `Active until ${contactAccessState.expiresAt}`
+              : `Inactive (${formatNaira(marketplaceContactSubscriptionFeeNaira)}/month)` %>
+          </strong>
+        </p>
+        <form class="grid-form compact" method="POST" action="/marketplace/contact-subscription/purchase">
+          <input type="hidden" name="returnTo" value="/marketplace" />
+          <div class="full">
+            <label class="checkbox">
+              <input
+                type="checkbox"
+                name="autoRenew"
+                value="yes"
+                <%= contactAccessState && contactAccessState.autoRenew ? "checked" : "" %>
+              />
+              Enable auto-renew
+            </label>
+          </div>
+          <div class="full">
+            <button type="submit" class="ghost-btn">
+              <%= contactAccessState && contactAccessState.hasActive
+                ? "Update contact auto-renew"
+                : `Activate contact access (${formatNaira(marketplaceContactSubscriptionFeeNaira)}/month)` %>
+            </button>
+          </div>
+        </form>
       </article>
     <% } %>
 
