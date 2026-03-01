@@ -33,23 +33,17 @@
               <button type="submit" class="ghost-btn">Logout</button>
             </form>
           <% } else { %>
-            <a class="ghost-link" href="/auth/login">Sign in</a>
-            <a class="button-link small" href="/auth/register">Create account</a>
+            <% if (currentPath && currentPath.startsWith('/marketplace')) { %>
+              <a class="ghost-link" href="/marketplace#marketplace-auth">Sign in</a>
+              <a class="button-link small" href="/marketplace#marketplace-register">Create account</a>
+            <% } else { %>
+              <a class="ghost-link" href="/auth/login">Sign in</a>
+              <a class="button-link small" href="/auth/register">Create account</a>
+            <% } %>
           <% } %>
         </div>
       </div>
     </header>
-    <% if (currentPath !== "/" && !currentPath.startsWith("/wallet")) { %>
-      <section class="platform-tabs-wrap">
-        <div class="container platform-tabs">
-          <a class="platform-tab <%= currentPath === '/' || currentPath.startsWith('/hotels') ? 'active' : '' %>" href="/">Stays</a>
-          <a class="platform-tab <%= currentPath.startsWith('/marketplace') ? 'active' : '' %>" href="/marketplace">Marketplace</a>
-          <% if (currentUser) { %>
-            <a class="platform-tab <%= currentPath.startsWith('/wallet') ? 'active' : '' %>" href="/wallet">Wallet</a>
-          <% } %>
-        </div>
-      </section>
-    <% } %>
     <% if (flash && flash.message) { %>
       <section class="container flash <%= flash.type === 'success' ? 'flash-success' : 'flash-error' %>">
         <p><%= flash.message %></p>
