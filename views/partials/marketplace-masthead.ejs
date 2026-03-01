@@ -26,26 +26,15 @@
 %>
 
 <section class="marketplace-hub">
-  <div class="marketplace-util-bar">
-    <p class="muted tiny">
-      <% if (currentUser) { %>
-        Welcome back, <strong><%= currentUser.name %></strong>
-      <% } else { %>
-        Welcome to HuT Marketplace
-      <% } %>
-    </p>
-    <div class="marketplace-util-links tiny">
-      <% if (currentUser) { %>
+  <% if (currentUser) { %>
+    <div class="marketplace-util-bar">
+      <div class="marketplace-util-links tiny">
         <a href="/marketplace/my-listings">My Listings</a>
         <a href="/marketplace/new">Sell Item</a>
         <a href="/wallet">Wallet</a>
-      <% } %>
+      </div>
     </div>
-    <div class="history-nav">
-      <button type="button" class="ghost-btn tiny js-history-back">Back</button>
-      <button type="button" class="ghost-btn tiny js-history-forward">Forward</button>
-    </div>
-  </div>
+  <% } %>
 
   <form class="marketplace-global-search" method="GET" action="/marketplace">
     <% if (selectedLocation) { %>

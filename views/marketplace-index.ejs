@@ -151,8 +151,8 @@
           <% } %>
         <% } %>
       </div>
-      <div class="marketplace-cta">
-        <% if (currentUser) { %>
+      <% if (currentUser) { %>
+        <div class="marketplace-cta">
           <% if (isSellerMarketplaceUser) { %>
             <a class="button-link" href="/marketplace/new">Sell an item</a>
             <a class="ghost-link" href="/marketplace/my-listings">My listings</a>
@@ -161,53 +161,9 @@
             <a class="button-link" href="/wallet">Activate buyer tools</a>
           <% } %>
           <a class="ghost-link" href="/wallet">Wallet (<%= formatNaira(walletBalance || 0) %>)</a>
-        <% } else { %>
-          <a class="button-link" href="#marketplace-auth">Sign in to sell</a>
-          <a class="ghost-link" href="/auth/register?next=%2Fmarketplace">Create account</a>
-        <% } %>
-      </div>
-    </article>
-
-    <% if (!currentUser) { %>
-      <article class="card" id="marketplace-auth">
-        <h3>Sign in from marketplace</h3>
-        <p class="muted tiny">Authenticate here to buy, unlock contacts, and sell items without leaving marketplace.</p>
-        <form class="grid-form compact" method="POST" action="/auth/login" data-remember-form="login">
-          <input type="hidden" name="next" value="/marketplace" />
-          <div>
-            <label for="marketLoginEmail">Email</label>
-            <input id="marketLoginEmail" name="email" type="email" required autocomplete="email" />
-          </div>
-          <div>
-            <label for="marketLoginPassword">Password</label>
-            <input
-              id="marketLoginPassword"
-              name="password"
-              type="password"
-              required
-              autocomplete="current-password"
-            />
-          </div>
-          <div class="full">
-            <label class="checkbox">
-              <input type="checkbox" name="rememberCredentials" value="yes" data-remember-checkbox />
-              Save login credentials on this device for autofill
-            </label>
-          </div>
-          <div class="full">
-            <button type="submit">Sign in</button>
-          </div>
-        </form>
-
-        <div class="marketplace-register-cta">
-          <h3>Create account on a dedicated page</h3>
-          <p class="muted tiny">
-            New here? Choose buyer or seller account type from the full signup page.
-          </p>
-          <a class="button-link" href="/auth/register?next=%2Fmarketplace">Create account</a>
         </div>
-      </article>
-    <% } %>
+      <% } %>
+    </article>
 
     <% if (currentUser && isSellerMarketplaceUser && limitState) { %>
       <article class="card">

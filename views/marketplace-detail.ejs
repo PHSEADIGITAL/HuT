@@ -100,7 +100,7 @@
     <% } %>
 
     <% if (!currentUser) { %>
-      <a class="button-link full-width" href="/marketplace#marketplace-auth">
+      <a class="button-link full-width" href="/auth/login?next=<%= encodeURIComponent(currentPath || `/marketplace/listings/${listing.id}`) %>">
         Sign in to unlock contact
       </a>
     <% } %>

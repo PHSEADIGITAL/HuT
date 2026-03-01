@@ -1,11 +1,28 @@
-<%- include("partials/header", { title: "Create account" }) %>
+<%- include("partials/header", {
+  title: marketplaceTheme ? "Marketplace create account" : "Create account",
+  forceMarketplaceMode: marketplaceTheme,
+  authNextPath: next
+}) %>
 
-<section class="hero small">
-  <h1>Create your HuT customer account</h1>
-  <p>Sign up once to book, pay, and manage cancellations securely.</p>
+<% if (marketplaceTheme) { %>
+  <%- include("partials/marketplace-masthead", {
+    categories: categories || [],
+    searchQuery: "",
+    searchCategory: "",
+    showQuickCategories: false
+  }) %>
+<% } %>
+
+<section class="hero small <%= marketplaceTheme ? 'marketplace-auth-hero' : '' %>">
+  <h1><%= marketplaceTheme ? "Create your HuT Marketplace account" : "Create your HuT customer account" %></h1>
+  <p>
+    <%= marketplaceTheme
+      ? "Choose buyer or seller and continue directly into marketplace."
+      : "Sign up once to book, pay, and manage cancellations securely." %>
+  </p>
 </section>
 
-<section class="card auth-card">
+<section class="card auth-card <%= marketplaceTheme ? 'marketplace-auth-card' : '' %>">
   <form class="grid-form" method="POST" action="/auth/register">
     <input type="hidden" name="next" value="<%= next %>" />
 

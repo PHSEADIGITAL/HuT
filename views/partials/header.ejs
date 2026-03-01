@@ -6,7 +6,19 @@
     <title><%= title ? `${title} | ${appName}` : appName %></title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
-  <body class="<%= currentPath && currentPath.startsWith('/marketplace') ? 'marketplace-mode' : '' %>">
+  <%
+    const hasForcedMarketplaceMode =
+      typeof forceMarketplaceMode === "undefined" ? false : Boolean(forceMarketplaceMode);
+    const requestedAuthNextPath = typeof authNextPath === "string" ? authNextPath : "";
+    const isMarketplaceTheme = Boolean(
+      (currentPath && currentPath.startsWith("/marketplace")) || hasForcedMarketplaceMode
+    );
+    const marketplaceAuthNext = encodeURIComponent(
+      requestedAuthNextPath ||
+        (currentPath && currentPath.startsWith("/marketplace") ? currentPath : "/marketplace")
+    );
+  %>
+  <body class="<%= isMarketplaceTheme ? 'marketplace-mode' : '' %>">
     <header class="topbar">
       <div class="container topbar-inner">
         <a class="brand" href="/"><%= appName %></a>
@@ -33,9 +45,9 @@
               <button type="submit" class="ghost-btn">Logout</button>
             </form>
           <% } else { %>
-            <% if (currentPath && currentPath.startsWith('/marketplace')) { %>
-              <a class="ghost-link" href="/marketplace#marketplace-auth">Sign in</a>
-              <a class="button-link small" href="/auth/register?next=%2Fmarketplace">Create account</a>
+            <% if (isMarketplaceTheme) { %>
+              <a class="ghost-link" href="/auth/login?next=<%= marketplaceAuthNext %>">Sign in</a>
+              <a class="button-link small" href="/auth/register?next=<%= marketplaceAuthNext %>">Create account</a>
             <% } else { %>
               <a class="ghost-link" href="/auth/login">Sign in</a>
               <a class="button-link small" href="/auth/register">Create account</a>
