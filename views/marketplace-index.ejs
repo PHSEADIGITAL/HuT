@@ -167,40 +167,51 @@
 
     <% if (currentUser && isSellerMarketplaceUser && limitState) { %>
       <article class="card">
-        <h3>Your seller listing subscriptions</h3>
-        <p class="muted">
-          Used <strong><%= limitState.used %></strong> of <strong><%= limitState.includedLimitDisplay %></strong>
-          listings this month.
-        </p>
-        <% if (activePlanSubscriptions.length) { %>
-          <p class="muted tiny">
-            Active plans:
-            <%= activePlanSubscriptions.map((item) => item.planName).join(", ") %>
+        <button
+          type="button"
+          class="ghost-btn js-panel-toggle marketplace-panel-toggle"
+          data-target="sellerPlanUpgradePanel"
+          aria-controls="sellerPlanUpgradePanel"
+          aria-expanded="false"
+        >
+          Upgrade listing plans
+        </button>
+        <section id="sellerPlanUpgradePanel" class="marketplace-collapsible-panel" hidden>
+          <h3>Upgrade listing plans</h3>
+          <p class="muted">
+            Used <strong><%= limitState.used %></strong> of <strong><%= limitState.includedLimitDisplay %></strong>
+            listings this month.
           </p>
-        <% } %>
+          <% if (activePlanSubscriptions.length) { %>
+            <p class="muted tiny">
+              Active plans:
+              <%= activePlanSubscriptions.map((item) => item.planName).join(", ") %>
+            </p>
+          <% } %>
 
-        <div class="marketplace-plan-grid">
-          <% marketplacePlans.filter((plan) => plan.id !== "free").forEach((plan) => { %>
-            <article class="card">
-              <h4><%= plan.name %></h4>
-              <p class="market-price"><%= formatNaira(plan.amount) %></p>
-              <p class="muted tiny"><%= plan.description %></p>
-              <p class="muted tiny">
-                Monthly limit:
-                <strong><%= plan.listingLimit === null ? "Unlimited" : plan.listingLimit %></strong>
-              </p>
-              <form method="POST" action="/marketplace/plans/purchase">
-                <input type="hidden" name="planId" value="<%= plan.id %>" />
-                <input type="hidden" name="returnTo" value="/marketplace" />
-                <label class="checkbox tiny">
-                  <input type="checkbox" name="autoRenew" value="yes" checked />
-                  Auto-renew
-                </label>
-                <button type="submit" class="ghost-btn">Buy with wallet</button>
-              </form>
-            </article>
-          <% }) %>
-        </div>
+          <div class="marketplace-plan-grid">
+            <% marketplacePlans.filter((plan) => plan.id !== "free").forEach((plan) => { %>
+              <article class="card">
+                <h4><%= plan.name %></h4>
+                <p class="market-price"><%= formatNaira(plan.amount) %></p>
+                <p class="muted tiny"><%= plan.description %></p>
+                <p class="muted tiny">
+                  Monthly limit:
+                  <strong><%= plan.listingLimit === null ? "Unlimited" : plan.listingLimit %></strong>
+                </p>
+                <form method="POST" action="/marketplace/plans/purchase">
+                  <input type="hidden" name="planId" value="<%= plan.id %>" />
+                  <input type="hidden" name="returnTo" value="/marketplace" />
+                  <label class="checkbox tiny">
+                    <input type="checkbox" name="autoRenew" value="yes" checked />
+                    Auto-renew
+                  </label>
+                  <button type="submit" class="ghost-btn">Buy with wallet</button>
+                </form>
+              </article>
+            <% }) %>
+          </div>
+        </section>
       </article>
     <% } %>
 

@@ -43,9 +43,6 @@
         </nav>
         <div class="auth-actions">
           <% if (currentUser) { %>
-            <% if (currentUser.role === "customer") { %>
-              <a class="button-link small" href="/bookings/my">My bookings</a>
-            <% } %>
             <span class="muted tiny">Signed in: <strong><%= currentUser.name %></strong> (<%= currentUser.role %>)</span>
             <form method="POST" action="/auth/logout">
               <button type="submit" class="ghost-btn">Logout</button>
