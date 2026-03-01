@@ -250,6 +250,10 @@ test("customer can login and complete mock booking", async () => {
 
   assert.match(bookingResponse.headers.location, /\/bookings\/.+\/success/);
   await customer.get(bookingResponse.headers.location).expect(200);
+
+  const myBookingsPage = await customer.get("/bookings/my").expect(200);
+  assert.match(myBookingsPage.text, /My bookings/i);
+  assert.match(myBookingsPage.text, /Manage/i);
 });
 
 test("hotel admin can access assigned dashboard", async () => {
@@ -918,7 +922,8 @@ test("onboarding supports room setup, commission updates, and hotel-admin room e
     .type("form")
     .send({
       pricePerNight: "64000",
-      totalUnits: "7"
+      totalUnits: "7",
+      manualBookedUnits: "2"
     })
     .expect(302);
 
@@ -927,4 +932,5 @@ test("onboarding supports room setup, commission updates, and hotel-admin room e
   assert.ok(updatedStandardRoom);
   assert.equal(updatedStandardRoom.pricePerNight, 64000);
   assert.equal(updatedStandardRoom.totalUnits, 7);
+  assert.equal(updatedStandardRoom.manualBookedUnits, 2);
 });

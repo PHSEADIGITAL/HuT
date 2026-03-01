@@ -39,6 +39,14 @@ function bookingBlocksInventory(booking) {
   return booking.status === "confirmed" || booking.status === "checked_in";
 }
 
+function normalizeManualBookedUnits(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(parsed));
+}
+
 function countOverlappingBookings(
   data,
   roomId,
@@ -71,12 +79,16 @@ function roomAvailability(data, room, checkInDate, checkOutDate) {
     checkInDate,
     checkOutDate
   );
-  const availableUnits = Math.max(0, room.totalUnits - activeBookings);
+  const manualBookedUnits = normalizeManualBookedUnits(room.manualBookedUnits);
+  const totalBookedUnits = activeBookings + manualBookedUnits;
+  const availableUnits = Math.max(0, room.totalUnits - totalBookedUnits);
   return {
     roomId: room.id,
     category: room.category,
     totalUnits: room.totalUnits,
     activeBookings,
+    manualBookedUnits,
+    totalBookedUnits,
     availableUnits,
     soldOut: availableUnits <= 0
   };

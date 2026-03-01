@@ -10,6 +10,12 @@ function ensureDataShape(data) {
   if (!Array.isArray(data.bookings)) {
     data.bookings = [];
   }
+  if (!Array.isArray(data.hotels)) {
+    data.hotels = [];
+  }
+  if (!Array.isArray(data.rooms)) {
+    data.rooms = [];
+  }
   if (!Array.isArray(data.payments)) {
     data.payments = [];
   }
@@ -106,6 +112,13 @@ function ensureDataShape(data) {
     }
     if (hotel.flutterwaveSubaccountId === undefined) {
       hotel.flutterwaveSubaccountId = "";
+    }
+  }
+  for (const room of data.rooms || []) {
+    if (!Number.isFinite(room.manualBookedUnits)) {
+      room.manualBookedUnits = 0;
+    } else {
+      room.manualBookedUnits = Math.max(0, Math.floor(room.manualBookedUnits));
     }
   }
 

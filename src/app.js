@@ -384,6 +384,7 @@ const marketplaceCategories = [
   "Home & Kitchen",
   "Kids",
   "Sports",
+  "Properties",
   "Vehicles",
   "Other"
 ];
@@ -462,6 +463,8 @@ const marketplaceCategoryThumbnailMap = {
     "https://images.unsplash.com/photo-1472162314594-ccd2f46f9e60?auto=format&fit=crop&w=900&q=80",
   Sports:
     "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=900&q=80",
+  Properties:
+    "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=900&q=80",
   Vehicles:
     "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=900&q=80",
   Other:
@@ -1303,6 +1306,13 @@ function canViewBooking(user, booking) {
 
 function customerOwnsBooking(user, booking) {
   return user && user.role === "customer" && user.id === booking.customerUserId;
+}
+
+function normalizeManualBookedUnits(value) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(value));
 }
 
 function getMaxConcurrentBookedUnits(data, roomId) {
@@ -3127,6 +3137,40 @@ function createApp() {
     });
   });
 
+  app.get("/bookings/my", requireRoles(["customer"]), async (request, response) => {
+    const snapshot = await getSnapshot();
+    const hotelById = new Map(snapshot.hotels.map((hotel) => [hotel.id, hotel]));
+    const bookingPaymentByBookingId = new Map(
+      snapshot.payments
+        .filter((payment) => payment.transactionType === "booking_payment" && payment.bookingId)
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+        .map((payment) => [payment.bookingId, payment])
+    );
+    const bookings = snapshot.bookings
+      .filter((booking) => booking.customerUserId === request.currentUser.id)
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+      .map((booking) => {
+        const hotel = hotelById.get(booking.hotelId);
+        const payment = bookingPaymentByBookingId.get(booking.id);
+        return {
+          ...booking,
+          hotelName: hotel?.name || "Unknown hotel",
+          location: hotel?.location || "",
+          transactionReference:
+            payment?.transactionRef ||
+            booking.paymentReference ||
+            booking.paymentExternalId ||
+            "-",
+          manageUrl: `/bookings/${booking.id}/manage`
+        };
+      });
+
+    response.render("bookings-my", {
+      bookings,
+      platform: snapshot.platform
+    });
+  });
+
   app.get("/bookings/:bookingId/manage", requireRoles(["customer"]), async (request, response) => {
     const snapshot = await getSnapshot();
     const booking = snapshot.bookings.find((item) => item.id === request.params.bookingId);
@@ -4643,6 +4687,7 @@ function createApp() {
             category: roomConfig.category,
             pricePerNight: roomConfig.defaultPricePerNight,
             totalUnits: roomConfig.totalUnits,
+            manualBookedUnits: 0,
             image: pickFallbackImage(roomFallbackImages, `${hotel.id}-${roomConfig.category}`),
             highlights: selectedRoomFeatures
           });
@@ -4857,6 +4902,7 @@ function createApp() {
       const roomId = request.params.roomId;
       const pricePerNight = Math.round(toNumber(request.body.pricePerNight, NaN));
       const totalUnits = Math.floor(toNumber(request.body.totalUnits, NaN));
+      const requestedManualBookedUnitsRaw = toNumber(request.body.manualBookedUnits, NaN);
 
       if (!Number.isFinite(pricePerNight) || pricePerNight < 1000) {
         setFlash(request, "error", "Room price must be at least NGN 1,000.");
@@ -4868,29 +4914,43 @@ function createApp() {
         response.redirect(`/admin/hotels/${hotelId}/dashboard`);
         return;
       }
+      if (Number.isFinite(requestedManualBookedUnitsRaw) && requestedManualBookedUnitsRaw < 0) {
+        setFlash(request, "error", "Off-platform booked units cannot be negative.");
+        response.redirect(`/admin/hotels/${hotelId}/dashboard`);
+        return;
+      }
 
       const result = await withWriteLock(async (data) => {
         const room = data.rooms.find((item) => item.id === roomId && item.hotelId === hotelId);
         if (!room) {
           return { error: "Room category not found for this hotel." };
         }
+        const manualBookedUnits = Number.isFinite(requestedManualBookedUnitsRaw)
+          ? normalizeManualBookedUnits(requestedManualBookedUnitsRaw)
+          : normalizeManualBookedUnits(room.manualBookedUnits);
 
         const minimumUnitsForExistingBookings = getMaxConcurrentBookedUnits(data, room.id);
-        if (totalUnits < minimumUnitsForExistingBookings) {
+        const minimumRequiredUnits = minimumUnitsForExistingBookings + manualBookedUnits;
+        if (totalUnits < minimumRequiredUnits) {
           return {
-            error: `Cannot reduce units below ${minimumUnitsForExistingBookings} due to existing confirmed bookings.`
+            error: `Cannot reduce units below ${minimumRequiredUnits} (${minimumUnitsForExistingBookings} platform + ${manualBookedUnits} off-platform bookings).`
           };
         }
 
         room.pricePerNight = pricePerNight;
         room.totalUnits = totalUnits;
+        room.manualBookedUnits = manualBookedUnits;
         return { room };
       });
 
       if (result.error) {
         setFlash(request, "error", result.error);
       } else {
-        setFlash(request, "success", "Room pricing and inventory updated.");
+        setFlash(
+          request,
+          "success",
+          "Room pricing, inventory, and off-platform booked units updated."
+        );
       }
       response.redirect(`/admin/hotels/${hotelId}/dashboard`);
     }
@@ -6012,7 +6072,8 @@ function createApp() {
           hotelId: room.hotelId,
           category: room.category,
           pricePerNight: room.pricePerNight,
-          totalUnits: room.totalUnits
+          totalUnits: room.totalUnits,
+          manualBookedUnits: normalizeManualBookedUnits(room.manualBookedUnits)
         })),
         bookings: filteredBookings.map((booking) => serializeBookingForApi(snapshot, booking)),
         payments: payments.map((payment) => ({
@@ -6040,6 +6101,7 @@ function createApp() {
       const roomId = request.params.roomId;
       const pricePerNight = Math.round(toNumber(request.body.pricePerNight, NaN));
       const totalUnits = Math.floor(toNumber(request.body.totalUnits, NaN));
+      const requestedManualBookedUnitsRaw = toNumber(request.body.manualBookedUnits, NaN);
 
       if (!Number.isFinite(pricePerNight) || pricePerNight < 1000) {
         apiError(response, 400, "Room price must be at least NGN 1,000.");
@@ -6049,21 +6111,30 @@ function createApp() {
         apiError(response, 400, "Total room units must be at least 1.");
         return;
       }
+      if (Number.isFinite(requestedManualBookedUnitsRaw) && requestedManualBookedUnitsRaw < 0) {
+        apiError(response, 400, "Off-platform booked units cannot be negative.");
+        return;
+      }
 
       const result = await withWriteLock(async (data) => {
         const room = data.rooms.find((item) => item.id === roomId && item.hotelId === hotelId);
         if (!room) {
           return { error: "Room category not found for this hotel." };
         }
+        const manualBookedUnits = Number.isFinite(requestedManualBookedUnitsRaw)
+          ? normalizeManualBookedUnits(requestedManualBookedUnitsRaw)
+          : normalizeManualBookedUnits(room.manualBookedUnits);
         const minimumUnitsForExistingBookings = getMaxConcurrentBookedUnits(data, room.id);
-        if (totalUnits < minimumUnitsForExistingBookings) {
+        const minimumRequiredUnits = minimumUnitsForExistingBookings + manualBookedUnits;
+        if (totalUnits < minimumRequiredUnits) {
           return {
-            error: `Cannot reduce units below ${minimumUnitsForExistingBookings} due to existing confirmed bookings.`
+            error: `Cannot reduce units below ${minimumRequiredUnits} (${minimumUnitsForExistingBookings} platform + ${manualBookedUnits} off-platform bookings).`
           };
         }
 
         room.pricePerNight = pricePerNight;
         room.totalUnits = totalUnits;
+        room.manualBookedUnits = manualBookedUnits;
         room.updatedAt = new Date().toISOString();
         return { room };
       });
