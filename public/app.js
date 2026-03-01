@@ -80,6 +80,36 @@
   });
 })();
 
+(function marketplacePanelToggles() {
+  const toggles = document.querySelectorAll(".js-panel-toggle");
+  if (!toggles.length) {
+    return;
+  }
+
+  toggles.forEach((button) => {
+    const targetId = button.getAttribute("data-target");
+    if (!targetId) {
+      return;
+    }
+    const panel = document.getElementById(targetId);
+    if (!panel) {
+      return;
+    }
+
+    const setExpandedState = (isExpanded) => {
+      panel.hidden = !isExpanded;
+      button.setAttribute("aria-expanded", isExpanded ? "true" : "false");
+      button.classList.toggle("is-active", isExpanded);
+    };
+
+    setExpandedState(false);
+    button.addEventListener("click", () => {
+      const isExpanded = button.getAttribute("aria-expanded") === "true";
+      setExpandedState(!isExpanded);
+    });
+  });
+})();
+
 (function rememberLoginCredentials() {
   const forms = document.querySelectorAll('form[data-remember-form="login"]');
   if (!forms.length) {

@@ -1575,6 +1575,187 @@ body.marketplace-mode .card {
   gap: 0.8rem;
 }
 
+/* Marketplace refresh (Vinted-inspired) */
+:root {
+  --market-accent: #007782;
+  --market-accent-dark: #00626b;
+  --market-surface: #ffffff;
+  --market-border: #d9e3e5;
+}
+
+body.marketplace-mode {
+  background: #f5f6f6;
+}
+
+body.marketplace-mode .topbar {
+  border-bottom: 1px solid #dbe4e7;
+}
+
+body.marketplace-mode .topbar .button-link {
+  background: var(--market-accent);
+}
+
+body.marketplace-mode .topbar .button-link:hover {
+  background: var(--market-accent-dark);
+}
+
+.marketplace-hub {
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+.marketplace-util-bar {
+  border: 1px solid var(--market-border);
+  border-radius: 14px;
+  background: var(--market-surface);
+  padding: 0.75rem 0.95rem;
+}
+
+.marketplace-global-search {
+  margin-top: 0.65rem;
+  border: 1px solid var(--market-border);
+  border-radius: 999px;
+  background: var(--market-surface);
+  padding: 0.4rem;
+}
+
+.marketplace-search-input-wrap input {
+  border: 1px solid #ccdadc;
+  border-radius: 999px;
+}
+
+.marketplace-search-category-wrap select {
+  border-color: #ccdadc;
+}
+
+.marketplace-search-btn {
+  background: var(--market-accent);
+}
+
+.marketplace-search-btn:hover {
+  background: var(--market-accent-dark);
+}
+
+.marketplace-quick-nav a.active {
+  color: #0e6f76;
+  background: #e8f6f6;
+  border-color: #9fd3d7;
+}
+
+.marketplace-filter-sidebar {
+  border-color: var(--market-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.marketplace-panel-launchers {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.marketplace-panel-toggle {
+  width: 100%;
+  text-align: left;
+  border-radius: 999px;
+  border-color: #ccdadc;
+  color: #25323f;
+  background: #ffffff;
+}
+
+.marketplace-panel-toggle.is-active {
+  background: #e8f6f6;
+  border-color: #9fd3d7;
+  color: #0e6f76;
+}
+
+.marketplace-collapsible-panel {
+  border-top: 1px solid #e7edee;
+  padding-top: 0.75rem;
+}
+
+.marketplace-collapsible-panel h3 {
+  margin-top: 0.1rem;
+}
+
+.marketplace-category-strip.compact {
+  margin-top: 0.75rem;
+  grid-auto-columns: minmax(96px, 122px);
+}
+
+.marketplace-register-cta {
+  margin-top: 0.95rem;
+  border-top: 1px solid #e7edee;
+  padding-top: 0.8rem;
+}
+
+.marketplace-register-cta h3 {
+  margin-top: 0;
+}
+
+.marketplace-register-cta .button-link {
+  margin-top: 0.35rem;
+}
+
+.marketplace-vinted-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.9rem;
+}
+
+.marketplace-vinted-grid .card {
+  grid-column: 1 / -1;
+}
+
+.market-vinted-card {
+  background: #ffffff;
+  border: 1px solid var(--market-border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.market-vinted-media {
+  display: block;
+}
+
+.market-vinted-media img {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+  display: block;
+}
+
+.market-vinted-body {
+  padding: 0.75rem;
+}
+
+.market-vinted-body h3 {
+  margin: 0.2rem 0 0.35rem;
+  font-size: 0.98rem;
+  line-height: 1.35;
+}
+
+.market-vinted-body h3 a {
+  color: #1a2937;
+  text-decoration: none;
+}
+
+.market-vinted-body h3 a:hover {
+  color: #0e6f76;
+  text-decoration: underline;
+}
+
+.market-vinted-body p {
+  margin: 0.22rem 0;
+}
+
+.market-vinted-body .market-price {
+  color: #101828;
+  font-size: 1rem;
+  margin: 0.2rem 0 0.05rem;
+}
+
 @media (max-width: 1140px) {
   .booking-search-bar {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1737,6 +1918,7 @@ body.marketplace-mode .card {
 
   .marketplace-global-search {
     grid-template-columns: 1fr;
+    border-radius: 14px;
   }
 
   .market-result-card {
@@ -1754,5 +1936,32 @@ body.marketplace-mode .card {
 
   .marketplace-util-bar {
     flex-direction: column;
+  }
+
+  .marketplace-panel-launchers {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .marketplace-vinted-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem;
+  }
+
+  .market-vinted-media img {
+    height: 180px;
+  }
+}
+
+@media (max-width: 520px) {
+  .marketplace-panel-launchers {
+    grid-template-columns: 1fr;
+  }
+
+  .marketplace-vinted-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .market-vinted-media img {
+    height: 200px;
   }
 }
