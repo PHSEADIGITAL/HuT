@@ -255,6 +255,7 @@
   "paymentSessions": [],
   "walletTopupIntents": [],
   "paymentWebhookEvents": [],
+  "mobileAuthTokens": [],
   "marketplaceSellerReviews": [],
   "hotelReviews": []
 }

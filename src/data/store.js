@@ -31,6 +31,9 @@ function ensureDataShape(data) {
   if (!Array.isArray(data.paymentWebhookEvents)) {
     data.paymentWebhookEvents = [];
   }
+  if (!Array.isArray(data.mobileAuthTokens)) {
+    data.mobileAuthTokens = [];
+  }
   if (!Array.isArray(data.users)) {
     data.users = [];
   }
@@ -77,6 +80,23 @@ function ensureDataShape(data) {
   for (const session of data.paymentSessions) {
     if (!session.sessionType) {
       session.sessionType = session.walletTopupId ? "wallet_topup" : "booking";
+    }
+  }
+
+  for (const token of data.mobileAuthTokens) {
+    if (!token.createdAt) {
+      token.createdAt = new Date().toISOString();
+    }
+    if (!token.expiresAt) {
+      const expiresAt = new Date(token.createdAt);
+      expiresAt.setUTCDate(expiresAt.getUTCDate() + 30);
+      token.expiresAt = expiresAt.toISOString();
+    }
+    if (token.revokedAt === undefined) {
+      token.revokedAt = null;
+    }
+    if (token.lastUsedAt === undefined) {
+      token.lastUsedAt = token.createdAt;
     }
   }
 

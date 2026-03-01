@@ -31,6 +31,195 @@ test("guest routes and health check", async () => {
   await guest.get("/admin").expect(302);
 });
 
+test("mobile api auth and browse endpoints work", async () => {
+  const app = createApp();
+  const guest = supertest(app);
+  const unique = Date.now();
+
+  const registerResponse = await guest
+    .post("/api/auth/register")
+    .send({
+      name: "Mobile Api User",
+      email: `mobileapi${unique}@hut.app`,
+      phone: `+23480222${String(unique).slice(-4)}`,
+      password: "Mobile@123",
+      confirmPassword: "Mobile@123",
+      marketplaceAccountType: "buyer"
+    })
+    .expect(201);
+
+  assert.equal(registerResponse.body.ok, true);
+  assert.ok(registerResponse.body.token);
+  assert.equal(registerResponse.body.user.marketplaceAccountType, "buyer");
+
+  const token = registerResponse.body.token;
+  const meResponse = await guest
+    .get("/api/auth/me")
+    .set("Authorization", `Bearer ${token}`)
+    .expect(200);
+  assert.equal(meResponse.body.ok, true);
+  assert.equal(meResponse.body.user.email, `mobileapi${unique}@hut.app`);
+
+  const staysResponse = await guest.get("/api/stays").expect(200);
+  assert.equal(staysResponse.body.ok, true);
+  assert.ok(Array.isArray(staysResponse.body.hotels));
+  assert.ok(staysResponse.body.hotels.length >= 1);
+
+  const marketplaceResponse = await guest.get("/api/marketplace/listings").expect(200);
+  assert.equal(marketplaceResponse.body.ok, true);
+  assert.ok(Array.isArray(marketplaceResponse.body.listings));
+  assert.ok(marketplaceResponse.body.listings.length >= 1);
+});
+
+test("mobile api booking, wallet, reviews, and admin endpoints work", async () => {
+  const app = createApp();
+  const guest = supertest(app);
+  const unique = Date.now();
+
+  const customerRegister = await guest
+    .post("/api/auth/register")
+    .send({
+      name: "Mobile Full Flow Customer",
+      email: `mobilefull${unique}@hut.app`,
+      phone: `+234803123${String(unique).slice(-4)}`,
+      password: "Mobile@123",
+      confirmPassword: "Mobile@123",
+      marketplaceAccountType: "buyer"
+    })
+    .expect(201);
+
+  const customerToken = customerRegister.body.token;
+  assert.ok(customerToken);
+
+  const bookingResponse = await guest
+    .post("/api/bookings")
+    .set("Authorization", `Bearer ${customerToken}`)
+    .send({
+      hotelId: "hotel-seaside-grand",
+      roomId: "room-seaside-standard",
+      checkInDate: "2026-04-20",
+      checkOutDate: "2026-04-22",
+      guests: 1,
+      emergencyContactName: "Api Emergency Contact",
+      emergencyContactPhone: "+2348032221000",
+      pickupRequested: false
+    })
+    .expect(201);
+  assert.equal(bookingResponse.body.ok, true);
+  assert.ok(bookingResponse.body.booking?.id);
+
+  const myBookings = await guest
+    .get("/api/bookings/my")
+    .set("Authorization", `Bearer ${customerToken}`)
+    .expect(200);
+  assert.equal(myBookings.body.ok, true);
+  assert.ok(Array.isArray(myBookings.body.bookings));
+  assert.ok(myBookings.body.bookings.length >= 1);
+
+  const walletBefore = await guest
+    .get("/api/wallet")
+    .set("Authorization", `Bearer ${customerToken}`)
+    .expect(200);
+  assert.equal(walletBefore.body.ok, true);
+
+  const topupResponse = await guest
+    .post("/api/wallet/topup")
+    .set("Authorization", `Bearer ${customerToken}`)
+    .send({
+      amount: 2000
+    })
+    .expect(200);
+  assert.equal(topupResponse.body.ok, true);
+
+  await guest
+    .post("/api/hotels/hotel-seaside-grand/reviews")
+    .set("Authorization", `Bearer ${customerToken}`)
+    .send({
+      rating: 5,
+      comment: "Great stay and smooth mobile checkout."
+    })
+    .expect(201);
+
+  await guest
+    .post("/api/marketplace/sellers/user-demo-customer/reviews")
+    .set("Authorization", `Bearer ${customerToken}`)
+    .send({
+      rating: 4,
+      comment: "Responsive seller from mobile review flow."
+    })
+    .expect(201);
+
+  const sellerDetail = await guest.get("/api/marketplace/sellers/user-demo-customer").expect(200);
+  assert.equal(sellerDetail.body.ok, true);
+  assert.ok(Array.isArray(sellerDetail.body.reviews));
+  assert.ok(sellerDetail.body.reviews.length >= 1);
+
+  const sellerRegister = await guest
+    .post("/api/auth/register")
+    .send({
+      name: "Mobile Upload Seller",
+      email: `mobileuploadseller${unique}@hut.app`,
+      phone: `+234701234${String(unique).slice(-4)}`,
+      password: "Mobile@123",
+      confirmPassword: "Mobile@123",
+      marketplaceAccountType: "seller"
+    })
+    .expect(201);
+  const sellerToken = sellerRegister.body.token;
+  assert.ok(sellerToken);
+
+  const uploadedImages = await guest
+    .post("/api/marketplace/listings/upload-images")
+    .set("Authorization", `Bearer ${sellerToken}`)
+    .attach("images", Buffer.from("mobile-image-1"), "photo-1.jpg")
+    .attach("images", Buffer.from("mobile-image-2"), "photo-2.jpg")
+    .expect(201);
+  assert.equal(uploadedImages.body.ok, true);
+  assert.ok(Array.isArray(uploadedImages.body.imageUrls));
+  assert.ok(uploadedImages.body.imageUrls.length >= 1);
+
+  const listingCreate = await guest
+    .post("/api/marketplace/listings")
+    .set("Authorization", `Bearer ${sellerToken}`)
+    .send({
+      title: "Uploaded From Mobile",
+      description: "Listing with uploaded images from mobile api flow.",
+      category: "Electronics",
+      condition: "Used",
+      location: "Bonny Island",
+      neighborhood: "Sandfield",
+      price: 50000,
+      imageUrls: uploadedImages.body.imageUrls
+    })
+    .expect(201);
+  assert.equal(listingCreate.body.ok, true);
+  assert.ok(listingCreate.body.listing?.id);
+
+  const ownerLogin = await guest
+    .post("/api/auth/login")
+    .send({
+      email: "owner@hut.app",
+      password: "Owner@123"
+    })
+    .expect(200);
+  const ownerToken = ownerLogin.body.token;
+  assert.ok(ownerToken);
+
+  const ownerDashboard = await guest
+    .get("/api/admin/owner-dashboard")
+    .set("Authorization", `Bearer ${ownerToken}`)
+    .expect(200);
+  assert.equal(ownerDashboard.body.ok, true);
+
+  const adminHotels = await guest
+    .get("/api/admin/hotels")
+    .set("Authorization", `Bearer ${ownerToken}`)
+    .expect(200);
+  assert.equal(adminHotels.body.ok, true);
+  assert.ok(Array.isArray(adminHotels.body.hotels));
+  assert.ok(adminHotels.body.hotels.length >= 1);
+});
+
 test("customer can login and complete mock booking", async () => {
   const app = createApp();
   const customer = supertest.agent(app);
