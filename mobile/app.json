@@ -32,7 +32,7 @@
           "cameraPermission": "Allow HuT to use your camera to capture listing photos."
         }
       ]
-    },
+    ],
     "web": {
       "bundler": "metro"
     }
