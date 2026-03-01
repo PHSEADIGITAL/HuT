@@ -43,15 +43,25 @@ npm run mobile:android
 
 ## API Base URL
 
-Set `EXPO_PUBLIC_API_BASE_URL` if your backend is not reachable on default values:
+By default, the app auto-detects the Expo dev host and uses `http://<expo-host>:3000` (best for physical devices on the same Wi-Fi).
 
-- Android emulator default: `http://10.0.2.2:3000`
-- iOS simulator default: `http://localhost:3000`
+If auto-detection is unavailable, these platform fallbacks are used:
+
+- Android emulator: `http://10.0.2.2:3000`
+- iOS simulator: `http://localhost:3000`
+
+Set `EXPO_PUBLIC_API_BASE_URL` to override explicitly:
 
 Example:
 
 ```bash
 EXPO_PUBLIC_API_BASE_URL=http://192.168.1.10:3000 npm start
+```
+
+For physical phone testing, prefer LAN mode:
+
+```bash
+npm run start:lan
 ```
 
 For production builds, set this to your HTTPS API:
