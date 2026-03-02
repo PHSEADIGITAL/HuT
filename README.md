@@ -49,6 +49,13 @@ npm start
 
 Open: `http://localhost:3000`
 
+For mobile device testing on the same Wi-Fi, open:
+
+- `http://<your-computer-lan-ip>:3000/health`
+- Example: `http://192.168.1.168:3000/health`
+
+> Do not use Expo port `8081` for API checks; `8081` is Metro bundler, not the backend API.
+
 Run backend + mobile together:
 
 ```bash

@@ -24,6 +24,7 @@ function boolEnv(name, fallback = false) {
 module.exports = {
   appName: "HuT!",
   nodeEnv,
+  host: process.env.HOST || "0.0.0.0",
   port: Number(process.env.PORT || 3000),
   baseUrl: process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`,
   dbFilePath:
