@@ -58,6 +58,8 @@ Example:
 EXPO_PUBLIC_API_BASE_URL=http://192.168.1.10:3000 npm start
 ```
 
+If your `.env` still contains local emulator hosts such as `http://10.0.2.2:3000` or `http://localhost:3000`, the app now auto-rewrites to Expo LAN host during device development.
+
 For physical phone testing, prefer LAN mode:
 
 ```bash
