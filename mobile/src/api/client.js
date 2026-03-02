@@ -1,4 +1,24 @@
-import { API_BASE_URL, API_BASE_URL_SOURCE } from "../config";
+import { API_BASE_URL, API_BASE_URL_CANDIDATES, API_BASE_URL_SOURCE } from "../config";
+
+let activeBaseUrl = API_BASE_URL;
+let activeBaseSource = API_BASE_URL_SOURCE;
+
+function orderedApiBaseCandidates() {
+  const ordered = [{ url: activeBaseUrl, source: activeBaseSource }, ...API_BASE_URL_CANDIDATES];
+  const seen = new Set();
+  return ordered.filter((candidate) => {
+    const key = String(candidate?.url || "");
+    if (!key || seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function formatCandidateList(candidates) {
+  return candidates.map((candidate) => `${candidate.url} (${candidate.source})`).join(", ");
+}
 
 export async function apiRequest(path, options = {}) {
   const { method = "GET", token = "", body, headers: customHeaders = {} } = options;
@@ -14,20 +34,36 @@ export async function apiRequest(path, options = {}) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  let response;
-  try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
-      method,
-      headers,
-      body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body)
-    });
-  } catch (_error) {
+  const candidates = orderedApiBaseCandidates();
+  let response = null;
+  let networkError = null;
+
+  for (const candidate of candidates) {
+    try {
+      response = await fetch(`${candidate.url}${path}`, {
+        method,
+        headers,
+        body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body)
+      });
+      activeBaseUrl = candidate.url;
+      activeBaseSource = candidate.source;
+      networkError = null;
+      break;
+    } catch (error) {
+      networkError = error;
+    }
+  }
+
+  if (!response) {
     const message = [
       "Network error while contacting the HuT API.",
-      `Base URL: ${API_BASE_URL} (${API_BASE_URL_SOURCE}).`,
-      "Ensure backend is running and your phone can access this address.",
-      "If needed, set EXPO_PUBLIC_API_BASE_URL to your machine LAN IP (for example: http://192.168.1.10:3000)."
+      `Tried: ${formatCandidateList(candidates)}.`,
+      "Ensure backend is running and your device can reach one of the addresses.",
+      "Use 10.0.2.2 for Android emulator, localhost for iOS simulator, and LAN IP for physical phones."
     ].join(" ");
+    if (networkError?.message) {
+      throw new Error(`${message} (${networkError.message})`);
+    }
     throw new Error(message);
   }
 

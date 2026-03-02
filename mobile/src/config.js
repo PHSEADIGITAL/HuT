@@ -2,6 +2,17 @@ import { NativeModules, Platform } from "react-native";
 
 const LOCAL_ONLY_HOSTS = new Set(["localhost", "127.0.0.1", "127.0.1.1", "::1", "0.0.0.0", "10.0.2.2", "10.0.3.2"]);
 
+function addCandidate(candidates, value, source) {
+  const url = normalizeBaseUrl(value);
+  if (!url) {
+    return;
+  }
+  if (candidates.some((candidate) => candidate.url === url)) {
+    return;
+  }
+  candidates.push({ url, source });
+}
+
 function normalizeBaseUrl(value) {
   const raw = String(value || "").trim();
   if (!raw) {
@@ -69,22 +80,23 @@ const rewrittenExplicitBaseUrl =
     ? `${explicitParts.protocol}://${detectedExpoDevHost}:${explicitParts.port || "3000"}`
     : "";
 
-function fallbackApiBaseUrl() {
-  if (detectedExpoDevHost) {
-    return `http://${detectedExpoDevHost}:3000`;
-  }
-  if (Platform.OS === "android") {
-    // Android emulator loopback for local machine backend.
-    return "http://10.0.2.2:3000";
-  }
-  return "http://localhost:3000";
+const apiBaseCandidates = [];
+addCandidate(apiBaseCandidates, explicitBaseUrl, "env");
+addCandidate(apiBaseCandidates, rewrittenExplicitBaseUrl, "env-localhost-rewritten");
+if (detectedExpoDevHost) {
+  addCandidate(apiBaseCandidates, `http://${detectedExpoDevHost}:3000`, "expo-host");
+}
+if (Platform.OS === "android") {
+  // Android emulators commonly map host machine via 10.0.2.2 / 10.0.3.2.
+  addCandidate(apiBaseCandidates, "http://10.0.2.2:3000", "android-emulator");
+  addCandidate(apiBaseCandidates, "http://10.0.3.2:3000", "android-alt-emulator");
+}
+addCandidate(apiBaseCandidates, "http://localhost:3000", "localhost");
+
+if (!apiBaseCandidates.length) {
+  addCandidate(apiBaseCandidates, "http://localhost:3000", "default-localhost");
 }
 
-export const API_BASE_URL = rewrittenExplicitBaseUrl || explicitBaseUrl || fallbackApiBaseUrl();
-export const API_BASE_URL_SOURCE = rewrittenExplicitBaseUrl
-  ? "env-localhost-rewritten"
-  : explicitBaseUrl
-    ? "env"
-  : detectedExpoDevHost
-    ? "expo-host"
-    : "platform-fallback";
+export const API_BASE_URL_CANDIDATES = apiBaseCandidates;
+export const API_BASE_URL = apiBaseCandidates[0].url;
+export const API_BASE_URL_SOURCE = apiBaseCandidates[0].source;
